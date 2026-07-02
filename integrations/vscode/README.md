@@ -1,0 +1,117 @@
+# DepAnalyzer Security
+
+Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Code.
+
+## Funciones
+
+- Vista **DepAnalyzer** en la barra de actividad.
+- Vista **Hallazgos** separada en CVE directas, CVE transitivas, desactualizadas y no resueltas.
+- Vista **Arbol de dependencias** con jerarquia real y filtros por problemas, vulnerables o directas.
+- Panel de detalle con CVE, CVSS, impacto, recomendacion, informacion tecnica y colores por severidad.
+- Centro de actualizaciones para revisar y seleccionar cambios individuales o multiples.
+- Confirmacion, copia previa, comparacion visual y reanalisis despues de actualizar.
+- Accesos rapidos para abrir el archivo afectado, ver la referencia CVE o preparar una actualizacion.
+- Ayuda para activar el analisis dinamico cuando una version no puede detectarse.
+- Análisis manual, automático y al guardar.
+- Diagnósticos directamente en archivos Maven, Gradle, npm y Python.
+- Información de CVE, severidad, CVSS y enlaces desde el editor.
+- Quick Fix para aplicar actualizaciones directas aprobadas.
+- Proveedores OSS Index y NVD mediante el CLI de DepAnalyzer.
+
+## Requisito: instalar el CLI
+
+La extensión utiliza el ejecutable `depanalyzer`. Instálalo antes de iniciar el análisis.
+La version 0.2.1 usa el contrato del CLI 2.2.1. Un CLI anterior funciona en modo limitado y mantiene
+deshabilitados el arbol, las cadenas o las actualizaciones que no pueda garantizar.
+
+### Windows
+
+Con Scoop:
+
+```powershell
+scoop bucket add andre https://github.com/andre-carbajal/scoop-bucket
+scoop install andre/depanalyzer
+scoop update depanalyzer
+```
+
+También puedes descargar `depanalyzer-windows-amd64.zip` desde
+[GitHub Releases](https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/releases),
+descomprimirlo y configurar:
+
+```json
+{
+  "depanalyzer.executablePath": "C:\\ruta\\depanalyzer.exe"
+}
+```
+
+### macOS y Linux
+
+```bash
+brew tap andre-carbajal/homebrew-tap
+brew install depanalyzer
+```
+
+También puedes usar Snap:
+
+```bash
+sudo snap install depanalyzer
+```
+
+Si el ejecutable está disponible en `PATH`, no necesitas configurar `depanalyzer.executablePath`.
+
+## Primer análisis
+
+1. Abre un proyecto que contenga `pom.xml`, `build.gradle`, `build.gradle.kts`, `package.json`,
+   `pyproject.toml` o `requirements.txt`.
+2. Selecciona el icono **DepAnalyzer** de la barra lateral.
+3. Ejecuta `DepAnalyzer: Analizar Workspace` desde la paleta de comandos.
+4. Elige **analisis preciso** para ejecutar Maven/Gradle y obtener las mismas versiones, transitivas y cadenas que la TUI.
+5. Revisa Hallazgos y el Arbol; abre cada CVE para ver la cadena completa y sus datos tecnicos.
+6. Usa las acciones del panel para saltar al archivo, revisar la CVE o preparar una actualizacion disponible.
+
+## Actualizar dependencias
+
+1. Selecciona el icono **Gestionar actualizaciones** en la cabecera de la vista DepAnalyzer o ejecuta
+   `DepAnalyzer: Gestionar Actualizaciones`.
+2. Espera a que el CLI genere un plan actualizado. Este paso no modifica archivos.
+3. Marca explicitamente las propuestas que deseas aplicar. Las correcciones de seguridad aparecen primero.
+4. Revisa la version actual, la version nueva, el tipo de cambio y el archivo afectado.
+5. Pulsa **Aplicar seleccionadas** y confirma la lista exacta de cambios.
+6. DepAnalyzer crea un backup, aplica los IDs aprobados, abre una comparacion y vuelve a analizar el workspace.
+
+Tambien puedes abrir una dependencia y usar **Preparar actualizacion** para llegar al centro con esa propuesta
+preseleccionada. Si aparece **Version no detectada**, activa el analisis dinamico antes de actualizar; la extension
+no aplicara un cambio cuyo origen no pueda verificar.
+
+## Configuración
+
+| Propiedad | Valor inicial | Descripción |
+|-----------|---------------|-------------|
+| `depanalyzer.executablePath` | vacío | Ruta al ejecutable; vacío utiliza `PATH`. |
+| `depanalyzer.autoAnalyze` | `true` | Analiza al activar la extensión. |
+| `depanalyzer.scanOnSave` | `true` | Reanaliza al guardar manifiestos. |
+| `depanalyzer.analysisMode` | `ask` | `ask` pregunta una vez; `precise` ejecuta Maven/Gradle; `fast` usa archivos. |
+| `depanalyzer.dynamic` | `false` | Opcion anterior, conservada solo para migracion. |
+| `depanalyzer.provider` | `auto` | Selecciona `auto`, `oss` o `nvd`. |
+| `depanalyzer.timeoutSeconds` | `1800` | Tiempo máximo del análisis. |
+
+El modo preciso solo se ejecuta en workspaces confiables y con consentimiento persistido. La notificacion permite
+cancelar, muestra las fases y las lineas de Maven/Gradle, y descarta resultados antiguos si empieza otro analisis.
+Los reportes se guardan temporalmente fuera del proyecto y se eliminan al terminar.
+
+Si aparece el banner de CLI antiguo, ejecuta **DepAnalyzer: Actualizar CLI** y luego
+**DepAnalyzer: Volver a Detectar CLI**.
+
+Para análisis completos se recomienda configurar `OSS_INDEX_TOKEN` y, opcionalmente, `NVD_API_KEY` en el entorno donde
+se inicia Visual Studio Code.
+
+## Privacidad
+
+La extensión ejecuta el CLI con `--no-telemetry`. Las consultas de vulnerabilidades pueden comunicarse con OSS Index o
+NVD según la configuración elegida.
+
+## Problemas y código fuente
+
+- [Reportar un problema](https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/issues)
+- [Código fuente](https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2)
+- [Documentación](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/)
