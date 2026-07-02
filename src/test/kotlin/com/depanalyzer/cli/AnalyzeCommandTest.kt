@@ -88,6 +88,65 @@ class AnalyzeCommandTest {
 
         val jsonContent = Files.readString(outputFile)
         assertTrue(jsonContent.contains("\"projectName\" : \"json-project\""))
+        assertTrue(jsonContent.contains("\"schemaVersion\" : \"1.1\""))
+    }
+
+    @Test
+    fun `exports report to requested json path`() {
+        val projectDir = Files.createTempDirectory("analyze-json-path")
+        val outputFile = projectDir.resolve("reports").resolve("report.json")
+        Files.createDirectories(outputFile.parent)
+
+        val command = Analyze(
+            analyzeExecutor = { DependencyReport(projectName = "requested-path") }
+        )
+
+        command.parse(
+            listOf(
+                projectDir.toString(),
+                "--output",
+                "json",
+                "--output-file",
+                outputFile.toString(),
+                "--quiet"
+            )
+        )
+
+        assertTrue(Files.readString(outputFile).contains("\"projectName\" : \"requested-path\""))
+    }
+
+    @Test
+    fun `output file implies json without separate output option`() {
+        val projectDir = Files.createTempDirectory("analyze-output-file")
+        val outputFile = projectDir.resolve("report.json")
+        val command = Analyze(
+            analyzeExecutor = { DependencyReport(projectName = "output-file-only") }
+        )
+
+        command.parse(
+            listOf(
+                projectDir.toString(),
+                "--output-file",
+                outputFile.toString(),
+                "--quiet"
+            )
+        )
+
+        assertTrue(Files.readString(outputFile).contains("\"projectName\" : \"output-file-only\""))
+    }
+
+    @Test
+    fun `returns exit code 2 when analysis fails`() {
+        val projectDir = Files.createTempDirectory("analyze-failure")
+        val command = Analyze(
+            analyzeExecutor = { error("provider unavailable") }
+        )
+
+        val result = assertFailsWith<ProgramResult> {
+            command.parse(listOf(projectDir.toString(), "--quiet"))
+        }
+
+        assertEquals(2, result.statusCode)
     }
 
     @Test

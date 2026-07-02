@@ -1,5 +1,6 @@
 package com.depanalyzer.cli
 
+import com.depanalyzer.BuildInfo
 import com.depanalyzer.core.ProjectAnalyzer
 import com.depanalyzer.parser.*
 import com.depanalyzer.parser.npm.NpmPackageParser
@@ -21,6 +22,7 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.optional
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.versionOption
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.path
 import com.github.ajalt.mordant.terminal.Terminal
@@ -29,6 +31,10 @@ import java.nio.file.Path
 import kotlin.io.path.writeText
 
 class Depanalyzer : CliktCommand() {
+    init {
+        versionOption(BuildInfo.VERSION)
+    }
+
     private val noTelemetry: Boolean by option(
         "--no-telemetry",
         help = "Disable anonymous usage telemetry"
@@ -141,6 +147,14 @@ abstract class BaseAnalyzeCommand(
         .path(mustExist = true, canBeFile = false)
         .optional()
     private val output: String? by option("-o", "--output", help = "Formato de salida (json a archivo)")
+    private val outputFile: String? by option(
+        "--output-file",
+        help = "Ruta del reporte JSON; use '-' para stdout"
+    )
+    private val quiet: Boolean by option(
+        "--quiet",
+        help = "Suprime progreso y mensajes informativos"
+    ).flag(default = false)
     private val noColor: Boolean by option("--no-color", help = "Desactiva el color en la consola").flag()
     private val tui: Boolean by option("--tui", help = "Activa la interfaz TUI interactiva").flag()
     private val ossToken: String? by option("--oss-token", help = "Token de autenticación para OSS Index API")
@@ -196,6 +210,10 @@ abstract class BaseAnalyzeCommand(
         "--command-output",
         help = "Muestra salida detallada de comandos Gradle/Maven durante el analisis dinamico"
     ).flag()
+    private val progressJson: Boolean by option(
+        "--progress-json",
+        help = "Emite eventos NDJSON de progreso por stderr"
+    ).flag(default = false)
     private val failOnCritical: Boolean by option(
         "--fail-on-critical",
         help = "Retorna exit code 1 si se detectan CVEs críticos"
@@ -229,7 +247,14 @@ abstract class BaseAnalyzeCommand(
         val capabilities = terminalCapabilitiesDetector.detect(noColor = noColor)
         val interactiveTui = tuiRequested && capabilities.supportsInteractiveTui
 
-        ProgressTracker.setMuted(interactiveTui)
+        ProgressTracker.setMuted(interactiveTui || quiet || outputFile == "-")
+        ProgressTracker.setEventListener(
+            if (progressJson) {
+                { event -> System.err.println(ProgressEventJsonWriter.write(event)) }
+            } else {
+                null
+            }
+        )
 
         try {
             if (!interactiveTui) {
@@ -313,7 +338,7 @@ abstract class BaseAnalyzeCommand(
             } catch (e: Exception) {
                 sendErrorEvent(e)
                 echo("Error durante el análisis: ${e.message}", err = true)
-                return
+                throw ProgramResult(2)
             }
 
             if (!tuiRequested) {
@@ -347,6 +372,7 @@ abstract class BaseAnalyzeCommand(
             TelemetryClient.flush(timeoutMs = 2500L)
             ProgressTracker.setMuted(false)
             ProgressTracker.setListener(null)
+            ProgressTracker.setEventListener(null)
         }
     }
 
@@ -360,6 +386,8 @@ abstract class BaseAnalyzeCommand(
 
         if (tui) trackFeature("flag_tui")
         if (output != null) trackFeature("flag_output_${output!!.lowercase()}")
+        if (outputFile != null) trackFeature("flag_output_file")
+        if (quiet) trackFeature("flag_quiet")
         if (verbose) trackFeature("flag_verbose")
         if (showChains) trackFeature("flag_show_chains")
         if (chainDetail) trackFeature("flag_chain_detail")
@@ -374,6 +402,7 @@ abstract class BaseAnalyzeCommand(
         if (oss) trackFeature("flag_oss")
         if (nvd) trackFeature("flag_nvd")
         if (commandOutput) trackFeature("flag_command_output")
+        if (progressJson) trackFeature("flag_progress_json")
         if (failOnCritical) trackFeature("flag_fail_on_critical")
     }
 
@@ -582,12 +611,21 @@ abstract class BaseAnalyzeCommand(
     }
 
     private fun renderCliOutput(targetPath: Path, report: DependencyReport, capabilities: TerminalCapabilities) {
-        if (output?.lowercase() == "json") {
+        if (output?.lowercase() == "json" || outputFile != null) {
             val generator = ReportGenerator()
-            val outputPath = jsonOutputPathProvider(targetPath)
             val json = if (verbose) generator.toJsonVerbose(report) else generator.toJson(report)
+            if (outputFile == "-") {
+                echo(json)
+                return
+            }
+
+            val outputPath = outputFile
+                ?.let(Path::of)
+                ?: jsonOutputPathProvider(targetPath)
             outputPath.writeText(json)
-            echo("Reporte JSON exportado a: $outputPath")
+            if (!quiet) {
+                echo("Reporte JSON exportado a: $outputPath")
+            }
             return
         }
 
@@ -665,5 +703,5 @@ class Tui(
 }
 
 fun main(args: Array<String>) = Depanalyzer()
-    .subcommands(Analyze(), Tui(), Update())
+    .subcommands(Analyze(), Tui(), Update(), Capabilities())
     .main(args)
