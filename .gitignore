@@ -45,3 +45,11 @@ bin/
 repos/
 reporte.json
 test-output.log
+integrations/mcp/node_modules/
+integrations/mcp/dist/
+tests/ui/node_modules/
+tests/ui/playwright-report/
+test-results/
+.terraform/
+*.tfstate
+*.tfstate.*

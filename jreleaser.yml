@@ -46,7 +46,7 @@ distributions:
 
 packagers:
   brew:
-    active: NEVER
+    active: ALWAYS
     continueOnError: false
     formulaName: depanalyzer
     multiPlatform: true
@@ -58,7 +58,7 @@ packagers:
       username: andre-carbajal
       token: '{{ env.HOMEBREW_TAP_TOKEN }}'
   scoop:
-    active: RELEASE
+    active: ALWAYS
     continueOnError: false
     packageName: depanalyzer
     repository:
@@ -69,7 +69,7 @@ packagers:
       username: andre-carbajal
       token: '{{ env.SCOOP_BUCKET_TOKEN }}'
   snap:
-    active: NEVER
+    active: ALWAYS
     continueOnError: false
     packageName: depanalyzer
     repository:

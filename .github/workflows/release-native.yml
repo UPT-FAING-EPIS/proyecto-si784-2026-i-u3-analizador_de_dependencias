@@ -3,10 +3,14 @@ name: Native Release
 on:
   push:
     tags:
-      - "v*"
+      - "v[0-9]*.[0-9]*.[0-9]*"
 
 permissions:
   contents: write
+  packages: write
+
+env:
+  PROJECT_VERSION: ${{ github.ref_name }}
 
 jobs:
   test:
@@ -39,6 +43,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs:
       - test
+    env:
+      OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -107,20 +113,83 @@ jobs:
           Copy-Item "build/native/nativeCompile/depanalyzer.exe" "package/depanalyzer-windows-amd64/bin/depanalyzer.exe"
           Compress-Archive -Path "package/depanalyzer-windows-amd64" -DestinationPath "dist/${{ matrix.artifact_name }}" -Force
 
-      - name: Smoke test (Unix)
+      - name: Smoke test contract and dynamic report (Unix)
         if: runner.os != 'Windows'
-        run: ./build/native/nativeCompile/depanalyzer --help
+        run: |
+          VERSION="${PROJECT_VERSION#v}"
+          ./build/native/nativeCompile/depanalyzer --version | grep -F "$VERSION"
+          ./build/native/nativeCompile/depanalyzer capabilities --output json > capabilities.json
+          python -c "import json; d=json.load(open('capabilities.json')); assert d['cliVersion']=='$VERSION'; assert '1.1' in d['reportSchemas']; assert d['features']['report.dependencyTree']; assert d['features']['update.applyById']"
+          ./build/native/nativeCompile/depanalyzer --no-telemetry analyze src/test/resources/poms/simple \
+            --dynamic --show-chains --tree-expand all --oss --timeout 300 \
+            --output json --output-file smoke-report.json --quiet --progress-json \
+            2> smoke-progress.ndjson
+          python -c "import json; d=json.load(open('smoke-report.json')); assert d['schemaVersion']=='1.1'; assert d['analysis']['requestedMode']=='DYNAMIC'; assert 'dependencyTree' in d; events=[json.loads(x) for x in open('smoke-progress.ndjson') if x.startswith('{')]; assert events and events[-1]['type'] in ('completed','success')"
 
-      - name: Smoke test (Windows)
+      - name: Smoke test contract and dynamic report (Windows)
         if: runner.os == 'Windows'
-        run: .\build\native\nativeCompile\depanalyzer.exe --help
+        shell: pwsh
+        run: |
+          $version = $env:PROJECT_VERSION.TrimStart("v")
+          $actual = & .\build\native\nativeCompile\depanalyzer.exe --version
+          if ($actual -notmatch [regex]::Escape($version)) { throw "Unexpected version: $actual" }
+          & .\build\native\nativeCompile\depanalyzer.exe capabilities --output json | Set-Content capabilities.json
+          $capabilities = Get-Content capabilities.json -Raw | ConvertFrom-Json
+          if ($capabilities.cliVersion -ne $version -or $capabilities.reportSchemas -notcontains "1.1") {
+            throw "Invalid capabilities contract"
+          }
+          & .\build\native\nativeCompile\depanalyzer.exe --no-telemetry analyze src/test/resources/poms/simple `
+            --dynamic --show-chains --tree-expand all --oss --timeout 300 `
+            --output json --output-file smoke-report.json --quiet --progress-json `
+            2> smoke-progress.ndjson
+          if ($LASTEXITCODE -ne 0) { throw "Dynamic smoke analysis failed" }
+          $report = Get-Content smoke-report.json -Raw | ConvertFrom-Json
+          if ($report.schemaVersion -ne "1.1" -or $report.analysis.requestedMode -ne "DYNAMIC") {
+            throw "Invalid dynamic report"
+          }
 
       - name: Upload packaged binary
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.id }}
+          name: native-${{ matrix.id }}
           path: dist/${{ matrix.artifact_name }}
           if-no-files-found: error
+
+  publish-container:
+    name: Publish application container
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract container metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      - name: Build and publish container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   publish-packagers:
     name: Publish package managers via JReleaser
@@ -137,6 +206,7 @@ jobs:
       - name: Download binary artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: native-*
           path: release-assets
 
       - name: Prepare dist
@@ -171,6 +241,13 @@ jobs:
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           SNAP_REPO_TOKEN: ${{ secrets.SNAP_REPO_TOKEN }}
           JRELEASER_SNAP_EXPORT_LOGIN: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+
+      - name: Reject hidden packager failures
+        run: |
+          if grep -E '\[(brew|scoop|snap)\].*(Unexpected error|Unauthorized|Bad credentials)' out/jreleaser/trace.log; then
+            echo "A package manager failed even though JReleaser returned success." >&2
+            exit 1
+          fi
 
       - name: Upload JReleaser logs
         if: always()
