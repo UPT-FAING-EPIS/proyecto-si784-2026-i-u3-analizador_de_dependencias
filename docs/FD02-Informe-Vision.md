@@ -4,11 +4,13 @@
 
 **UNIVERSIDAD PRIVADA DE TACNA**
 
-**FACULTAD DE INGENIERIA**
+**FACULTAD DE INGENIERÍA**
 
-**Escuela Profesional de Ingenieria de Sistemas**
+**Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Java***
+**Informe de Visión de Producto**
+
+**Sistema Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)**
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -18,31 +20,33 @@ Integrantes:
 
 ***Carbajal Vargas, Andre Alejandro (2023077287)***
 
-***Yupa Gomez, Fatima Sofia (2023076618)***
+***Yupa Gómez, Fátima Sofía (2023076618)***
 
-**Tacna - Peru**
+**Tacna - Perú**
 
 ***2026***
 
 </center>
+
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
+
+Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
+
+Informe de Visión de Producto
+
+Versión *1.3*
 
 | CONTROL DE VERSIONES |           |              |               |            |                                           |
 |:--------------------:|:----------|:-------------|:--------------|:-----------|:------------------------------------------|
-|       Version        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo                                    |
-|         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Primera version del documento             |
-|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Ampliacion de detalle academico en FD02   |
+|       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo                                    |
+|         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Primera versión del documento             |
+|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-04 | Ampliación de detalle académico en FD02   |
 |         1.2          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-05 | Correcciones menores y ajustes de formato |
-
-**Sistema *Analizador de Dependencias Java (JavaDepAnalyzer)***
-
-**Documento de Vision**
-
-**Version *1.2***
+|         1.3          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Unificación del formato institucional     |
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
-**INDICE GENERAL**
+**ÍNDICE GENERAL**
 
 [1. Introduccion](#_Toc52661346)
 
@@ -105,8 +109,8 @@ Integrantes:
 
    **1.1 Proposito**
 
-   El presente informe define la vision funcional y academica del sistema *Analizador de Dependencias Java (
-   JavaDepAnalyzer)*. Su proposito es establecer una referencia comun para estudiantes, docente evaluador y futuros
+   El presente informe define la vision funcional y academica del sistema *Analizador de Dependencias Multi-Lenguaje (
+   DepAnalyzer)*. Su proposito es establecer una referencia comun para estudiantes, docente evaluador y futuros
    mantenedores del proyecto, describiendo con claridad:
 
     - El problema real que se busca resolver.
@@ -121,13 +125,13 @@ Integrantes:
 
    **Alcance funcional (incluido):**
 
-    - Analisis de proyectos Java basados en Maven (`pom.xml`), Gradle Groovy (`build.gradle`) y Gradle Kotlin (
-      `build.gradle.kts`).
+    - Analisis de proyectos Maven (`pom.xml`), Gradle Groovy/Kotlin (`build.gradle`, `build.gradle.kts`), npm
+      (`package.json`) y Python (`pyproject.toml`, `requirements.txt`).
     - Deteccion automatica del tipo de proyecto mediante el modulo `ProjectDetector`.
     - Extraccion de dependencias y repositorios declarados en archivos de construccion.
     - Consulta de versiones recientes por repositorio para identificar posibles desactualizaciones.
     - Consulta de vulnerabilidades conocidas (CVE) utilizando OSS Index.
-    - Enriquecimiento opcional de hallazgos con NIST NVD (`--use-nvd`) para mejorar detalle de CVSS y cobertura de CVEs.
+    - Seleccion de fuente de vulnerabilidades con OSS Index (`--oss`), NIST NVD (`--nvd`) o modo automatico.
     - Clasificacion de vulnerabilidades en directas y transitivas dentro del reporte.
     - Emision de salida legible en consola y salida estructurada en JSON.
     - Modo TUI interactivo para visualizacion y flujo de trabajo en terminal.
@@ -173,8 +177,8 @@ Integrantes:
 
    **1.5 Vision General**
 
-   JavaDepAnalyzer se visiona como una herramienta academica aplicada que permite evaluar rapidamente el estado de
-   dependencias de proyectos Java. La propuesta de valor central es reducir incertidumbre tecnica al consolidar, en una
+   DepAnalyzer se visiona como una herramienta academica aplicada que permite evaluar rapidamente el estado de
+   dependencias de proyectos multi-ecosistema. La propuesta de valor central es reducir incertidumbre tecnica al consolidar, en una
    sola ejecucion CLI, la informacion de:
 
     - Dependencias declaradas.
@@ -190,7 +194,7 @@ Integrantes:
 
    **2.1 Oportunidad de negocio**
 
-   En proyectos Java modernos, el uso intensivo de librerias de terceros incrementa la probabilidad de incorporar
+   En proyectos modernos, el uso intensivo de librerias de terceros incrementa la probabilidad de incorporar
    componentes desactualizados o vulnerables. La revision manual de estos componentes suele ser costosa y no escalable,
    especialmente en entornos de aprendizaje con recursos limitados.
 
@@ -208,7 +212,7 @@ Integrantes:
 
    **2.2 Definicion del problema**
 
-   El problema principal es la baja visibilidad del estado real de dependencias en proyectos Java, lo que genera dos
+   El problema principal es la baja visibilidad del estado real de dependencias en proyectos Maven, Gradle, npm y Python, lo que genera dos
    consecuencias directas:
 
     1. **Riesgo de seguridad:** inclusion de componentes con CVEs conocidos.
@@ -220,7 +224,7 @@ Integrantes:
     - Complejidad de dependencias transitivas.
     - Falta de una rutina sistematica de verificacion en etapas tempranas.
 
-   **Efecto esperado con JavaDepAnalyzer:**
+   **Efecto esperado con DepAnalyzer:**
 
     - Reducir tiempo de diagnostico.
     - Mejorar la priorizacion de acciones correctivas.
@@ -288,7 +292,7 @@ Integrantes:
 
    **4.1 Perspectiva del producto**
 
-   JavaDepAnalyzer es una herramienta complementaria al ecosistema Maven/Gradle. Su rol no es reemplazar el sistema de
+   DepAnalyzer es una herramienta complementaria a los ecosistemas Maven, Gradle, npm y Python. Su rol no es reemplazar el sistema de
    build, sino inspeccionar configuraciones existentes y producir informacion de apoyo para la toma de decisiones.
 
    **Flujo funcional general:**
@@ -304,11 +308,11 @@ Integrantes:
    | ID | Capacidad | Estado | Evidencia tecnica |
           |---|---|---|---|
    | CAP-01 | Deteccion automatica de tipo de proyecto | Implementado | `ProjectDetector.detect` |
-   | CAP-02 | Parseo Maven/Gradle (Groovy/Kotlin) | Implementado | Modulos `parser/*` |
+   | CAP-02 | Parseo Maven/Gradle, npm y Python | Implementado | Modulos `parser/*` |
    | CAP-03 | Lectura de repositorios declarados | Implementado | Parsers y `ProjectRepository` |
    | CAP-04 | Deteccion de dependencias desactualizadas | Implementado | `ProjectAnalyzer.findLatestVersion` |
    | CAP-05 | Consulta de CVEs con OSS Index | Implementado | `OssIndexClient.getVulnerabilities` |
-   | CAP-06 | Enriquecimiento de CVEs con NVD (opcional) | Implementado | `NvdClient`, `VulnerabilityMerger`, flag `--use-nvd` |
+   | CAP-06 | Consulta de CVEs con NVD | Implementado | `NvdClient`, `VulnerabilityMerger`, flag `--nvd` |
    | CAP-07 | Clasificacion directas/transitivas | Implementado | `ProjectAnalyzer.classifyVulnerabilities` |
    | CAP-08 | Salida JSON estructurada | Implementado | `ReportGenerator.toJson` |
    | CAP-09 | Salida consola sin color opcional | Implementado | `--no-color` en CLI |
@@ -363,7 +367,7 @@ Integrantes:
 ./build/install/depanalyzer/bin/depanalyzer.bat analyze . --output json
 ```
 
-    En caso de requerir autenticacion para OSS Index, el token puede proveerse por opcion CLI (`--oss-index-token`) o variable de entorno (`OSS_INDEX_TOKEN`).
+    En caso de requerir autenticacion para OSS Index, el token puede proveerse por opcion CLI (`--oss-token`) o variable de entorno (`OSS_INDEX_TOKEN`).
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
@@ -377,7 +381,7 @@ Integrantes:
 | RF-02 | Leer dependencias declaradas            | El sistema extrae coordenadas de dependencias por parser correspondiente      |
 | RF-03 | Obtener version mas reciente            | El sistema consulta metadata en repositorios configurados                     |
 | RF-04 | Detectar vulnerabilidades               | El sistema consulta OSS Index para coordenadas detectadas                     |
-| RF-05 | Enriquecer CVEs con NVD (opcional)      | El sistema permite agregar datos oficiales de NVD mediante `--use-nvd`        |
+| RF-05 | Consultar CVEs con NVD                  | El sistema permite usar datos oficiales de NVD mediante `--nvd`              |
 | RF-06 | Clasificar vulnerabilidades             | El sistema diferencia hallazgos directos y transitivos                        |
 | RF-07 | Mostrar salida en consola               | El sistema presenta resumen y detalle para lectura humana                     |
 | RF-08 | Exportar salida JSON                    | El sistema serializa el reporte para integracion automatizada                 |
@@ -494,7 +498,7 @@ experiencia o extensiones quedan subordinadas al cumplimiento del nucleo funcion
 
 1. La vision del proyecto queda definida con mayor precision tecnica y academica, delimitando claramente su alcance y
    sus fronteras.
-2. JavaDepAnalyzer responde a una necesidad concreta de control de dependencias y vulnerabilidades en proyectos Java.
+2. DepAnalyzer responde a una necesidad concreta de control de dependencias y vulnerabilidades en proyectos multi-ecosistema.
 3. La estructura funcional implementada en CLI, junto con salida en consola y JSON, habilita tanto uso manual como
    semiautomatizado.
 4. El documento establece criterios medibles de calidad que permiten evaluar el avance del producto de forma objetiva.
@@ -537,3 +541,18 @@ experiencia o extensiones quedan subordinadas al cumplimiento del nucleo funcion
 - https://kotlinlang.org/docs/home.html
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
+
+# 10. Wiki y Roadmap de Versiones
+
+La fuente de la Wiki se mantiene en `wiki/` y se sincroniza mediante `wiki.yml`.
+
+| Versión | Estado | Objetivo | Entregables |
+|---------|--------|----------|-------------|
+| v1.x | Completada | Analizador Maven/Gradle | Parsers, versiones, OSS Index, árbol transitivo, CLI y JSON |
+| v2.x | Actual | Solución multi-ecosistema auditable | npm/Python, NVD, TUI, actualización, binarios, MCP y calidad automatizada |
+| v3.x | Planificada | Adopción y operación continua | GitHub Action, imagen OCI, SBOM, firma, caché e histórico |
+
+## 10.1 Criterios de cierre
+
+Cada versión requiere pruebas exitosas, cobertura mínima, reportes de seguridad, documentación actualizada, tag y
+release. La versión actual corresponde a la segunda línea principal; v3.x permanece como planificación.

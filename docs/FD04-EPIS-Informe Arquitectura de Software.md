@@ -8,7 +8,9 @@
 
 **Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Java***
+**Informe de Arquitectura de Software**
+
+**Sistema Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)**
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -20,7 +22,7 @@ Integrantes:
 
 ***Yupa Gómez, Fátima Sofía (2023076618)***
 
-**Tacna – Perú**
+**Tacna - Perú**
 
 ***2026***
 
@@ -28,16 +30,17 @@ Integrantes:
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
-Sistema *Analizador de Dependencias Java (JavaDepAnalyzer)*
+Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
 
 Informe de Arquitectura de Software
 
-Versión *1.0*
+Versión *1.1*
 
 | CONTROL DE VERSIONES |           |              |               |            |                 |
 |:--------------------:|:----------|:-------------|:--------------|:-----------|:----------------|
 |       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo          |
 |         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-22 | Versión inicial |
+|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Unificación del formato institucional |
 
 # ÍNDICE GENERAL
 
@@ -75,6 +78,7 @@ Versión *1.0*
     4. [Escenario de rendimiento](#44-escenario-de-rendimiento)
     5. [Escenario de mantenibilidad](#45-escenario-de-mantenibilidad)
     6. [Otros escenarios de calidad](#46-otros-escenarios-de-calidad)
+5. [Evidencias de calidad y pruebas](#5-evidencias-de-calidad-y-pruebas)
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
@@ -82,13 +86,13 @@ Versión *1.0*
 
 ## 1.1 Propósito (Diagrama 4+1)
 
-Este informe describe la arquitectura de software de *JavaDepAnalyzer* siguiendo el enfoque 4+1, articulando las vistas
+Este informe describe la arquitectura de software de *DepAnalyzer* siguiendo el enfoque 4+1, articulando las vistas
 de uso, lógica, implementación, procesos y despliegue, y vinculándolas con los requerimientos establecidos en FD03 y las
 restricciones de FD01/FD02.
 
 Las decisiones de arquitectura priorizan:
 
-- Cobertura funcional del análisis de dependencias Java (Maven/Gradle).
+- Cobertura funcional del análisis de dependencias multi-ecosistema (Maven, Gradle, npm y Python).
 - Seguridad operativa en la actualización de versiones (confirmación explícita y backup).
 - Interoperabilidad para CI/CD (salida JSON y códigos de salida).
 - Mantenibilidad mediante separación modular del código.
@@ -99,7 +103,7 @@ Este documento cubre la arquitectura del sistema implementado en la versión act
 
 - Flujo de análisis (`analyze`) y visualización interactiva (`tui`).
 - Flujo de remediación guiada (`update`) con `--dry-run` y respaldo `.bak`.
-- Integración con OSS Index y enriquecimiento opcional con NVD (`--use-nvd`).
+- Integración con OSS Index y NVD mediante selección de fuente (`--oss`, `--nvd` o modo automático).
 - Estructura de paquetes, componentes y comunicación interna.
 
 No se incluye una arquitectura de aplicación web o móvil, ni persistencia basada en una base de datos relacional, porque
@@ -174,7 +178,7 @@ el producto es una herramienta CLI/TUI local orientada a archivos y APIs externa
 | Dependencia de APIs externas (OSS Index/NVD) | Se requiere estrategia de degradación controlada ante errores o rate limit.    |
 | Sin base de datos relacional                 | Persistencia orientada a archivos (`build`, `.bak`, `dependency-report.json`). |
 | Actualización no destructiva                 | Confirmación explícita y backup obligatorio antes de aplicar cambios.          |
-| Soporte multi-build (Maven/Gradle)           | Se separan parsers y updaters por tipo de proyecto.                            |
+| Soporte multi-ecosistema (Maven/Gradle/npm/Python) | Se separan parsers y updaters por tipo de proyecto.                       |
 | Integración CI                               | Se define salida JSON y modo fail-on-critical para automatización.             |
 
 # 3. Representación de la arquitectura del sistema
@@ -241,7 +245,7 @@ sequenceDiagram
     participant OI as OssIndexClient
     participant NVD as NvdClient
     participant RG as ReportGenerator
-    Usuario ->> CLI: analyze . --use-nvd -o json
+    Usuario ->> CLI: analyze . --nvd -o json
     CLI ->> PA: analyze(request)
     PA ->> PD: detect(projectPath)
     PD -->> PA: ProjectType
@@ -461,7 +465,7 @@ flowchart TD
     C --> D[Parsear dependencias y repositorios]
     D --> E[Consultar versiones recientes]
     E --> F[Consultar CVEs OSS Index]
-    F --> G{--use-nvd}
+    F --> G{--nvd}
     G -- Sí --> H[Consultar NVD y fusionar resultados]
     G -- No --> I[Continuar]
     H --> J[Construir DependencyReport]
@@ -525,7 +529,7 @@ flowchart TD
 | Elemento            | Definición                                                               |
 |---------------------|--------------------------------------------------------------------------|
 | Fuente de estímulo  | Usuario técnico o pipeline CI                                            |
-| Estímulo            | Ejecutar análisis sobre un proyecto Maven/Gradle                         |
+| Estímulo            | Ejecutar análisis sobre un proyecto Maven, Gradle, npm o Python          |
 | Entorno             | CLI local o runner CI con conectividad de red                            |
 | Respuesta           | Detectar tipo de proyecto, listar desactualizadas y CVEs, emitir reporte |
 | Medida de respuesta | Cobertura funcional alineada con RF priorizados de FD03                  |
@@ -591,3 +595,56 @@ flowchart TD
 | Entorno             | GitHub Actions u otro motor CI                                      |
 | Respuesta           | Salida JSON parseable y `--fail-on-critical` para control de estado |
 | Medida de respuesta | Integración estable de reporte y política de fallo por criticidad   |
+
+# 5. Evidencias de calidad y pruebas
+
+Los reportes se publican en GitHub Pages para centralizar la evidencia solicitada por el curso. La URL base del sitio es:
+
+<https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/>
+
+| Evidencia | Enlace público | Fuente / herramienta |
+|-----------|----------------|----------------------|
+| Sonar | [Reporte Sonar](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/sonar/) | SonarCloud / Gradle Sonar |
+| Semgrep | [Reporte Semgrep](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/semgrep/) | Semgrep CLI |
+| Snyk | [Reporte Snyk](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/snyk/) | Snyk CLI |
+| Pruebas unitarias | [Reporte unitario](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/unit/) | Gradle Test / JUnit 5 |
+| Pruebas de integración | [Reporte de integración](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/integration/) | Tests bajo `src/test/kotlin/com/depanalyzer/integration` |
+| Pruebas de mutación | [Reporte de mutación](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/mutation/) | PIT |
+| Pruebas de interfaz | [Reporte de interfaz](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/interface/) | Tests CLI/TUI |
+| Pruebas BDD | [Reporte BDD](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/reports/bdd/) | Escenarios Gherkin/Markdown de uso CLI |
+| Documentación autogenerada | [API Docs](https://upt-faing-epis.github.io/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/api-docs/) | Dokka |
+
+Los reportes de Sonar y Snyk dependen de los secretos `SONAR_TOKEN` y `SNYK_TOKEN` configurados en GitHub. Si esos
+secretos no están disponibles, el workflow publica una página de estado indicando la configuración pendiente sin bloquear
+la publicación del resto de evidencias.
+
+# 6. Ingeniería Inversa e Infraestructura
+
+Los diagramas se contrastaron con `src/main/kotlin`, `build.gradle.kts`, `.github/workflows` e
+`infrastructure/terraform`; representan componentes implementados.
+
+```mermaid
+flowchart TD
+    REPO[Repositorio] --> CI[CI]
+    REPO --> QUALITY[Quality and Pages]
+    REPO --> RELEASE[Native Release]
+    REPO --> TF[Terraform]
+    QUALITY --> JACOCO[JaCoCo >= 70%]
+    QUALITY --> PIT[PIT]
+    QUALITY --> BDD[Cucumber]
+    QUALITY --> UI[Playwright + videos]
+    QUALITY --> STATIC[Sonar + Semgrep + Snyk]
+    QUALITY --> PAGES[GitHub Pages]
+    RELEASE --> BIN[Binarios multiplataforma]
+    TF --> ENV[Environment github-pages]
+    TF --> VARS[Variables de calidad]
+```
+
+| Vista | Fuente de ingeniería inversa |
+|-------|------------------------------|
+| Casos de uso | Comandos `analyze`, `tui`, `update` |
+| Secuencia | `ProjectAnalyzer`, parsers, OSS/NVD y reportes |
+| Clases | Data classes y servicios Kotlin |
+| Componentes | Paquetes de `com.depanalyzer` |
+| Despliegue | Actions, GraalVM, Releases, Pages y JReleaser |
+| Infraestructura | Recursos Terraform del proveedor GitHub |

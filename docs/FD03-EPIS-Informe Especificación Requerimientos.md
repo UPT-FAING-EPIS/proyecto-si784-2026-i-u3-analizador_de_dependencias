@@ -8,7 +8,9 @@
 
 **Escuela Profesional de Ingeniería de Sistemas**
 
-**Proyecto *Analizador de Dependencias Java***
+**Informe de Especificación de Requerimientos**
+
+**Sistema Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)**
 
 Curso: *Calidad y Pruebas de Software*
 
@@ -20,7 +22,7 @@ Integrantes:
 
 ***Yupa Gómez, Fátima Sofía (2023076618)***
 
-**Tacna – Perú**
+**Tacna - Perú**
 
 ***2026***
 
@@ -28,16 +30,17 @@ Integrantes:
 
 <div style="page-break-after: always; visibility: hidden">\pagebreak</div>
 
-Sistema *Analizador de Dependencias Java (JavaDepAnalyzer)*
+Sistema *Analizador de Dependencias Multi-Lenguaje (DepAnalyzer)*
 
 Informe de Especificación de Requerimientos
 
-Versión *1.0*
+Versión *1.1*
 
 | CONTROL DE VERSIONES |           |              |               |            |                 |
 |:--------------------:|:----------|:-------------|:--------------|:-----------|:----------------|
 |       Versión        | Hecha por | Revisada por | Aprobada por  | Fecha      | Motivo          |
 |         1.0          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-04-22 | Versión inicial |
+|         1.1          | ACV, FYG  | ACV, FYG     | P. Cuadros Q. | 2026-06-23 | Unificación del formato institucional |
 
 # ÍNDICE GENERAL
 
@@ -83,11 +86,11 @@ Versión *1.0*
 # 1. Introducción
 
 El presente Informe de Especificación de Requerimientos de Software (ERS) define, de manera verificable, las capacidades
-funcionales y no funcionales del sistema *JavaDepAnalyzer*. Este documento integra la visión académica del proyecto (
+funcionales y no funcionales del sistema *DepAnalyzer*. Este documento integra la visión académica del proyecto (
 FD02), la factibilidad evaluada (FD01) y el estado actual del código fuente para asegurar trazabilidad real entre
 requisitos, implementación y pruebas.
 
-El sistema está orientado a analizar proyectos Java (Maven y Gradle), identificar dependencias desactualizadas, detectar
+El sistema está orientado a analizar proyectos Maven, Gradle, npm y Python, identificar dependencias desactualizadas, detectar
 vulnerabilidades CVE y brindar mecanismos de actualización guiada en terminal, con confirmación explícita y respaldo de
 archivos de build.
 
@@ -115,20 +118,20 @@ flowchart TD
     FI --> EPIS[Escuela Profesional de Ingeniería de Sistemas]
     EPIS --> CURSO[Curso: Calidad y Pruebas de Software]
     CURSO --> DOC[Docente Evaluador]
-    CURSO --> EQ[Equipo del Proyecto JavaDepAnalyzer]
+    CURSO --> EQ[Equipo del Proyecto DepAnalyzer]
 ```
 
 # 3. Visionamiento de la Empresa
 
 ## 3.1 Descripcion del problema
 
-En proyectos Java modernos, la gestión manual de dependencias presenta dos fallas frecuentes: (a) atraso de versiones
+En proyectos modernos, la gestión manual de dependencias presenta dos fallas frecuentes: (a) atraso de versiones
 con deuda técnica acumulada y (b) exposición a CVEs en dependencias directas y transitivas. La revisión manual no escala
 para árboles de dependencias medianos o grandes y dificulta tomar decisiones oportunas de mantenimiento.
 
 ## 3.2 Objetivo de negocios
 
-Reducir tiempo de diagnóstico técnico y riesgo de seguridad en proyectos Java, proporcionando una herramienta CLI/TUI
+Reducir tiempo de diagnóstico técnico y riesgo de seguridad en proyectos Maven, Gradle, npm y Python, proporcionando una herramienta CLI/TUI
 que entregue evidencia rápida, trazable y accionable para mantenimiento de dependencias.
 
 ## 3.3 Objetivo de diseño
@@ -148,7 +151,7 @@ Diseñar una solución modular en Kotlin/JVM que:
 - Análisis de proyectos Maven (`pom.xml`), Gradle Groovy (`build.gradle`) y Gradle Kotlin (`build.gradle.kts`).
 - Comandos CLI `analyze`, `tui` y `update`.
 - Detección de desactualización por consulta de metadatos de repositorios.
-- Detección de CVEs con OSS Index y enriquecimiento opcional con NVD (`--use-nvd`).
+- Detección de CVEs con OSS Index, NVD o modo automático (`--oss`, `--nvd`).
 - Clasificación de vulnerabilidades directas/transitivas y renderizado en árbol.
 - Exportación de resultados en JSON (`--output json`).
 - Actualización guiada con confirmación interactiva y backup automático (`.bak`).
@@ -189,7 +192,7 @@ flowchart LR
 
 ## 4.2 Diagrama de procesos propuesto
 
-Proceso automatizado con JavaDepAnalyzer.
+Proceso automatizado con DepAnalyzer.
 
 ```mermaid
 flowchart LR
@@ -197,7 +200,7 @@ flowchart LR
     B --> C[Parsers extraen dependencias y repositorios]
     C --> D[ProjectAnalyzer consulta últimas versiones]
     D --> E[OssIndexClient detecta CVEs]
-    E --> F{--use-nvd?}
+    E --> F{--nvd?}
     F -- Sí --> G[NvdClient enriquece y fusiona CVEs]
     F -- No --> H[Continuar con OSS Index]
     G --> I[ReportGenerator y ConsoleRenderer]
@@ -244,7 +247,7 @@ flowchart LR
 | RF-03 | Parsear repositorios del proyecto                                                         | Alta      | `parser/GradleRepositoryParser.kt`, `parser/PomDependencyParser.kt`                                                 |
 | RF-04 | Consultar versión más reciente por repositorio                                            | Alta      | `repository/RepositoryClient.kt`, `core/ProjectAnalyzer.kt`                                                         |
 | RF-05 | Detectar CVEs usando OSS Index                                                            | Alta      | `repository/OssIndexClient.kt`, `core/ProjectAnalyzer.kt`                                                           |
-| RF-06 | Enriquecer CVEs con NVD (opcional)                                                        | Media     | `repository/NvdClient.kt`, `repository/VulnerabilityMerger.kt`, flag `--use-nvd`                                    |
+| RF-06 | Consultar CVEs con NVD                                                                     | Media     | `repository/NvdClient.kt`, `repository/VulnerabilityMerger.kt`, flag `--nvd`                                        |
 | RF-07 | Clasificar vulnerabilidades directas y transitivas                                        | Alta      | `core/ProjectAnalyzer.kt`, `report/DependencyReport.kt`                                                             |
 | RF-08 | Mostrar resultados en consola con árbol de dependencias                                   | Alta      | `report/ConsoleRenderer.kt`, `report/DependencyTreeBuilder.kt`                                                      |
 | RF-09 | Exportar resultados a JSON                                                                | Alta      | `report/ReportGenerator.kt`, opción `--output json`                                                                 |
@@ -262,7 +265,7 @@ flowchart LR
 | RN-02 | Antes de modificar `pom.xml` / `build.gradle` / `build.gradle.kts` se genera backup `.bak`          | `BuildFileBackup.ensureBackup`                 |
 | RN-03 | En caso de error de fuente externa (OSS Index/NVD), el análisis continúa con degradación controlada | Manejo de excepciones en `ProjectAnalyzer`     |
 | RN-04 | Si se usan credenciales de repositorio, solo se envían a destinos HTTPS confiables explícitos       | `InputSafety.isTrustedCredentialDestination`   |
-| RN-05 | En conflictos de token OSS Index, el token CLI tiene prioridad sobre variable de entorno            | `--oss-index-token` vs `OSS_INDEX_TOKEN`       |
+| RN-05 | En conflictos de token OSS Index, el token CLI tiene prioridad sobre variable de entorno            | `--oss-token` vs `OSS_INDEX_TOKEN`             |
 | RN-06 | El modo TUI prioriza cobertura dinámica de transitivas para análisis interactivo                    | Forzado de análisis dinámico en TUI            |
 
 # 6. Fase de Desarrollo
@@ -304,7 +307,7 @@ flowchart LR
     U --> UC4[Actualizar dependencias guiadas]
     U --> UC5[Ejecutar dry-run]
     U --> UC6[Fallar build por CVE crítico]
-    UC1 --> S[JavaDepAnalyzer]
+    UC1 --> S[DepAnalyzer]
     UC2 --> S
     UC3 --> S
     UC4 --> S
@@ -348,7 +351,7 @@ flowchart TD
     C --> D[Parser correspondiente extrae dependencias]
     D --> E[RepositoryClient busca versiones recientes]
     E --> F[OssIndexClient consulta CVEs]
-    F --> G{--use-nvd}
+    F --> G{--nvd}
     G -- Sí --> H[NvdClient y VulnerabilityMerger]
     G -- No --> I[Continuar]
     H --> J[ProjectAnalyzer clasifica hallazgos]
@@ -374,7 +377,7 @@ sequenceDiagram
     participant OI as OssIndexClient
     participant NVD as NvdClient
     participant RG as ReportGenerator/ConsoleRenderer
-    Usuario ->> CLI: analyze . --use-nvd --output json
+    Usuario ->> CLI: analyze . --nvd --output json
     CLI ->> PA: analyze(request)
     PA ->> PD: detect(projectPath)
     PD -->> PA: ProjectType
@@ -502,3 +505,85 @@ classDiagram
 - https://maven.apache.org/
 - https://docs.gradle.org/
 - https://kotlinlang.org/docs/home.html
+
+# 11. Historias de Usuario, Criterios y Escenarios BDD
+
+Cada criterio dispone de dos escenarios como mínimo.
+
+## HU-01 Detectar el tipo de proyecto
+
+**Como** desarrollador, **quiero** identificar automáticamente el manifiesto **para** usar el parser correcto.
+
+**CA-01.1:** reconocer manifiestos soportados.
+
+- **Escenario 01:** **Dado** un directorio con `pom.xml`, **cuando** se detecta el proyecto, **entonces** el tipo es Maven.
+- **Escenario 02:** **Dado** un directorio con `package.json`, **cuando** se detecta el proyecto, **entonces** el tipo es npm.
+
+**CA-01.2:** rechazar entradas no soportadas.
+
+- **Escenario 03:** **Dado** un directorio vacío, **cuando** se detecta el proyecto, **entonces** se informa que no existe un manifiesto reconocido.
+- **Escenario 04:** **Dado** una ruta que es archivo, **cuando** se detecta el proyecto, **entonces** se rechaza por no ser directorio.
+
+## HU-02 Analizar vulnerabilidades
+
+**Como** responsable de mantenimiento, **quiero** conocer CVEs y severidad **para** priorizar correcciones.
+
+**CA-02.1:** clasificar vulnerabilidades según CVSS.
+
+- **Escenario 05:** **Dado** un CVSS 9.8, **cuando** se calcula la severidad, **entonces** es `CRITICAL`.
+- **Escenario 06:** **Dado** un CVSS 7.5, **cuando** se calcula la severidad, **entonces** es `HIGH`.
+
+**CA-02.2:** degradar de forma controlada ante fallos externos.
+
+- **Escenario 07:** **Dado** que OSS falla en modo automático, **cuando** NVD está disponible, **entonces** se utiliza el fallback.
+- **Escenario 08:** **Dado** que se forzó OSS, **cuando** la fuente falla, **entonces** se informa el error sin cambiar de fuente.
+
+## HU-03 Exportar evidencia
+
+**Como** ingeniero de CI, **quiero** consumir JSON estable **para** aplicar políticas automáticas.
+
+**CA-03.1:** emitir JSON válido y versionado.
+
+- **Escenario 09:** **Dado** un análisis terminado, **cuando** se solicita JSON, **entonces** contiene `schemaVersion`.
+- **Escenario 10:** **Dado** un reporte sin hallazgos, **cuando** se serializa, **entonces** sus listas siguen siendo parseables.
+
+**CA-03.2:** comunicar el resultado con códigos de salida.
+
+- **Escenario 11:** **Dado** un CVE crítico, **cuando** se usa `--fail-on-critical`, **entonces** el proceso retorna 1.
+- **Escenario 12:** **Dado** un error de análisis, **cuando** no puede generarse el reporte, **entonces** retorna 2.
+
+## HU-04 Actualizar dependencias con seguridad
+
+**Como** desarrollador, **quiero** confirmar las actualizaciones **para** evitar cambios destructivos.
+
+**CA-04.1:** no escribir sin aprobación.
+
+- **Escenario 13:** **Dado** un plan, **cuando** se ejecuta `--dry-run`, **entonces** el manifiesto no cambia.
+- **Escenario 14:** **Dado** una sugerencia rechazada, **cuando** termina el flujo, **entonces** se conserva la versión.
+
+**CA-04.2:** proteger el manifiesto.
+
+- **Escenario 15:** **Dado** una actualización aprobada, **cuando** se escribe, **entonces** existe un archivo `.bak`.
+- **Escenario 16:** **Dado** un resultado inválido, **cuando** se verifica antes de guardar, **entonces** se cancela la escritura.
+
+## HU-05 Consultar evidencias públicas
+
+**Como** docente evaluador, **quiero** navegar documentos y reportes **para** verificar la entrega.
+
+**CA-05.1:** publicar documentos y manual.
+
+- **Escenario 17:** **Dado** el portal, **cuando** se abre la portada, **entonces** aparecen FD01 a FD05.
+- **Escenario 18:** **Dado** la portada, **cuando** se selecciona el manual, **entonces** se abre el Manual de Usuario.
+
+**CA-05.2:** conservar evidencia audiovisual.
+
+- **Escenario 19:** **Dado** una ejecución Playwright, **cuando** termina un escenario, **entonces** se guarda video WebM.
+- **Escenario 20:** **Dado** una falla, **cuando** Playwright termina, **entonces** conserva captura y traza.
+
+| Historia | Escenarios | Evidencia |
+|----------|------------|-----------|
+| HU-01 | 01-04 | `ProjectDetectorTest` y Cucumber |
+| HU-02 | 05-08 | `VulnerabilityTest` y clientes OSS/NVD |
+| HU-03 | 09-12 | `AnalyzeCommandTest` y `ReportGeneratorTest` |
+| HU-04 | 13-16 | `UpdateCommandIntegrationTest` y updaters |
+| HU-05 | 17-20 | Playwright, reporte y videos |

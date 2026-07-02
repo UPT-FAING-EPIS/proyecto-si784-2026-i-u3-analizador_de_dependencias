@@ -14,6 +14,27 @@ y, opcionalmente, NIST NVD para ecosistema Maven.
 - Detecta vulnerabilidades CVE via OSS Index (Maven, npm y PyPI).
 - Enriquece CVEs con NIST NVD (CVSS v3 y metadata oficial) para Maven.
 - Incluye modo interactivo (`tui`) y modo de actualizacion asistida (`update`).
+- Expone un contrato JSON 1.1 para integraciones, con arbol, cadenas, modo real y estado de proveedores.
+
+## Contrato de integracion 2.2.1
+
+```bash
+depanalyzer --version
+depanalyzer capabilities --output json
+```
+
+`capabilities` permite detectar los esquemas y funciones disponibles sin interpretar la ayuda. El reporte 1.1
+incluye `dependencyTree`, `vulnerabilityChains`, ubicaciones, modo solicitado/real, ecosistemas, duracion,
+advertencias y estado de OSS Index/NVD. Los consumidores antiguos pueden seguir leyendo los campos del esquema 1.0.
+
+Para obtener paridad con la TUI:
+
+```bash
+depanalyzer analyze . --dynamic --show-chains --tree-expand all \
+  --output json --output-file report.json --quiet --progress-json
+```
+
+`--progress-json` escribe eventos NDJSON en `stderr`; el documento final permanece separado en el archivo indicado.
 
 ## Instalacion
 
@@ -44,13 +65,13 @@ sudo snap install depanalyzer
 Linux/macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/union/scripts/install.sh | sh
 ```
 
 Version especifica:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u1-analizador-de-dependencias/main/scripts/install.sh | sh -s -- --version v1.0.0
+curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/union/scripts/install.sh | sh -s -- --version v2.2.1
 ```
 
 Windows:
@@ -196,6 +217,8 @@ Analiza un proyecto y genera reporte de dependencias vulnerables/desactualizadas
 | `--oss`              | Fuerza solo OSS (sin fallback)                                      | `analyze`  | `false`           | `depanalyzer analyze . --oss`                        |
 | `--nvd`              | Fuerza solo NVD (sin fallback)                                      | `analyze`  | `false`           | `depanalyzer analyze . --nvd`                        |
 | `-o`, `--output`     | Exporta salida (`json`)                                             | `analyze`  | salida consola    | `depanalyzer analyze . -o json`                      |
+| `--output-file PATH` | Ruta del JSON; use `-` para stdout                                  | `analyze`  | `dependency-report.json` | `depanalyzer analyze . -o json --output-file -` |
+| `--quiet`            | Suprime progreso y mensajes informativos                            | `analyze`  | `false`           | `depanalyzer analyze . -o json --output-file - --quiet` |
 | `--fail-on-critical` | Retorna exit code 1 si hay CVE CRITICAL                             | `analyze`  | `false`           | `depanalyzer analyze . --fail-on-critical`           |
 | `--no-color`         | Desactiva colores ANSI                                              | `analyze`  | `false`           | `depanalyzer analyze . --no-color`                   |
 | `--tui`              | Abre interfaz TUI desde `analyze`                                   | `analyze`  | `false`           | `depanalyzer analyze . --tui`                        |
@@ -211,6 +234,7 @@ Analiza un proyecto y genera reporte de dependencias vulnerables/desactualizadas
 | `--tree-expand MODE` | Modo de expansion: `collapsed`, `critical`, `high`, `medium`, `all` | `analyze`  | `all`             | `depanalyzer analyze . --tree-expand high`           |
 | `--timeout N`        | Timeout en segundos para descarga de dependencias                   | `analyze`  | `1800`            | `depanalyzer analyze . --timeout 900`                |
 | `--command-output`   | Muestra salida de comandos Maven/Gradle en dinamico                 | `analyze`  | `false`           | `depanalyzer analyze . --dynamic --command-output`   |
+| `--progress-json`    | Emite progreso NDJSON por `stderr` para integraciones               | `analyze`  | `false`           | `depanalyzer analyze . --progress-json`              |
 | `-h`, `--help`       | Ayuda del subcomando                                                | `analyze`  | -                 | `depanalyzer analyze --help`                         |
 
 Ejemplos:
@@ -279,6 +303,9 @@ Propone y aplica actualizaciones en el archivo de build con confirmacion interac
 | `--dynamic`       | Usa analisis dinamico para plan de update | `update`   | `false`           | `depanalyzer update . --dynamic`           |
 | `--dry-run`       | Simula cambios sin escribir archivos      | `update`   | `false`           | `depanalyzer update . --dry-run`           |
 | `--only-security` | Solo sugiere updates que corrigen CVEs    | `update`   | `false`           | `depanalyzer update . --only-security`     |
+| `--plan`          | Exporta sugerencias JSON sin modificar    | `update`   | `false`           | `depanalyzer update . --plan --output-file -` |
+| `--apply-id ID`   | Aplica una sugerencia concreta del plan   | `update`   | -                 | `depanalyzer update . --apply-id abc123`   |
+| `--output-file`   | Ruta del plan JSON; use `-` para stdout   | `update`   | `dependency-update-plan.json` | `depanalyzer update . --plan --output-file plan.json` |
 | `-h`, `--help`    | Ayuda del subcomando                      | `update`   | -                 | `depanalyzer update --help`                |
 
 Ejemplos:
@@ -319,3 +346,17 @@ depanalyzer update . --dry-run
 ## Desarrollo
 
 Si vas a contribuir o trabajar en el proyecto internamente, revisa `DEVELOP.md`.
+
+## Servidor MCP
+
+La integración en `integrations/mcp` permite que clientes y agentes compatibles con Model Context
+Protocol ejecuten auditorías, generen planes y apliquen únicamente actualizaciones aprobadas.
+
+```bash
+cd integrations/mcp
+npm install
+npm run build
+```
+
+La configuración y las herramientas disponibles se documentan en
+[`integrations/mcp/README.md`](integrations/mcp/README.md).
