@@ -6,14 +6,15 @@ import { fileURLToPath } from "node:url";
 
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(extensionRoot, "..", "..");
-const command = process.platform === "win32" ? "cmd.exe" : "./gradlew";
+const command = process.platform === "win32" ? "cmd.exe" : "bash";
 const args = process.platform === "win32"
   ? ["/d", "/s", "/c", "gradlew.bat", "installDist"]
-  : ["installDist"];
+  : ["./gradlew", "installDist"];
 const result = spawnSync(command, args, {
   cwd: repositoryRoot,
   stdio: "inherit"
 });
+if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
 
 const source = path.join(repositoryRoot, "build", "install", "depanalyzer");
