@@ -39,6 +39,7 @@ export function coordinate(groupId: string, artifactId: string, ecosystem = "MAV
 }
 
 export function flattenFindings(report: DependencyReport, projectPath?: string): Finding[] {
+  const treeRelationships = indexTreeRelationships(report);
   const outdatedByKey = new Map<string, OutdatedDependency>();
   for (const dep of report.outdated ?? []) {
     outdatedByKey.set(keyFor(dep.groupId, dep.artifactId, dep.ecosystem), dep);
@@ -91,6 +92,9 @@ export function flattenFindings(report: DependencyReport, projectPath?: string):
   }
 
   for (const dep of report.outdated ?? []) {
+    const treeMatch = treeRelationships.get(
+      `${keyFor(dep.groupId, dep.artifactId, dep.ecosystem)}:${dep.currentVersion}`
+    );
     findings.push({
       kind: "outdated",
       groupId: dep.groupId,
@@ -100,12 +104,43 @@ export function flattenFindings(report: DependencyReport, projectPath?: string):
       latestVersion: dep.latestVersion,
       ecosystem: dep.ecosystem,
       sourceLocation: dep.sourceLocation,
-      relationship: dep.sourceLocation ? "direct" : "unknown",
+      relationship: dep.sourceLocation ? "direct" : treeMatch?.relationship ?? "unknown",
+      dependencyChain: treeMatch?.chain,
+      directRoot: treeMatch?.directRoot,
       projectPath
     });
   }
 
   return findings.sort(compareFindings);
+}
+
+function indexTreeRelationships(report: DependencyReport): Map<
+  string,
+  { relationship: "direct" | "transitive"; chain?: string[]; directRoot?: string }
+> {
+  const index = new Map<string, {
+    relationship: "direct" | "transitive";
+    chain?: string[];
+    directRoot?: string;
+  }>();
+  const visit = (node: NonNullable<DependencyReport["dependencyTree"]>[number], path: string[]): void => {
+    const current = `${coordinate(node.groupId, node.artifactId, node.ecosystem)}:${node.currentVersion}`;
+    const chain = [...path, current];
+    const relationship = node.isDirectDependency ? "direct" : "transitive";
+    const key = `${keyFor(node.groupId, node.artifactId, node.ecosystem)}:${node.currentVersion}`;
+    const candidate = {
+      relationship,
+      chain: relationship === "transitive" ? chain : undefined,
+      directRoot: relationship === "transitive" ? chain[0] : current
+    } as const;
+    const existing = index.get(key);
+    if (!existing || relationship === "direct" || (chain.length < (existing.chain?.length ?? Number.MAX_SAFE_INTEGER))) {
+      index.set(key, candidate);
+    }
+    for (const child of node.children ?? []) visit(child, chain);
+  };
+  for (const root of report.dependencyTree ?? []) visit(root, []);
+  return index;
 }
 
 export function summarizeFindings(findings: Finding[]): string {

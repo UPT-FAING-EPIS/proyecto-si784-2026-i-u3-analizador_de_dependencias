@@ -8,7 +8,7 @@ import com.github.ajalt.clikt.parameters.options.option
 
 data class CapabilityDocument(
     val cliVersion: String = BuildInfo.VERSION,
-    val reportSchemas: List<String> = listOf("1.0", "1.1"),
+    val reportSchemas: List<String> = listOf("1.0", "1.1", "1.2", "1.3"),
     val features: Map<String, Boolean> = linkedMapOf(
         "analyze.outputFile" to true,
         "analyze.stdout" to true,
@@ -16,7 +16,12 @@ data class CapabilityDocument(
         "report.dependencyTree" to true,
         "report.vulnerabilityChains" to true,
         "update.plan" to true,
-        "update.applyById" to true
+        "update.applyById" to true,
+        "update.reportFile" to true,
+        "update.planFile" to true,
+        "update.applyResultJson" to true,
+        "update.progressJson" to true,
+        "update.lockfileSync" to true
     )
 )
 

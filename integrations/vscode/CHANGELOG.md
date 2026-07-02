@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0
+
+- Fallback automático a `npm audit` cuando OSS Index no está disponible.
+- Cobertura de vulnerabilidades explícita: completa, alternativa o no evaluada.
+- Clasificación directa/transitiva mediante el árbol y rutas hasta la dependencia raíz.
+- Colores semánticos, identificadores CVE/GHSA e inspector educativo.
+- Token de OSS Index almacenado con SecretStorage.
+- Revisión única de actualizaciones con accesos “Solo seguridad” y “Solo parches”.
+- Hallazgos agrupados por dependencia y versión, conservando cada CVE/GHSA en el inspector.
+- Árbol canónico sin nodos repetidos, con ruta principal y consulta de rutas alternativas.
+- Filas alineadas con chevron propio e inspectores desplazables solo cuando desbordan la vista.
+
+## 0.3.0
+
+- Nuevo dashboard único con resumen gráfico, hallazgos paginados, inspector y árbol expandible.
+- Barra lateral reducida a métricas, prioridades y navegación.
+- Planes reutilizables con huella de entrada y progreso cancelable.
+- Aplicación transaccional sin recalcular versiones, con backups únicos y rollback.
+- Sincronización segura de `package-lock.json` sin ejecutar scripts de npm.
+- Reanálisis posterior en segundo plano.
+
 ## 0.2.1
 
 - Unidad 2 pasa a ser la fuente oficial del CLI, la extension y sus integraciones.

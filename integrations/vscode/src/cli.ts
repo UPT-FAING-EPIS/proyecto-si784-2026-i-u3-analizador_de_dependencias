@@ -12,12 +12,14 @@ import type {
   AnalysisRunOptions,
   CliProgressEvent,
   DependencyReport,
-  UpdatePlan
+  UpdatePlan,
+  UpdateExecutionResult
 } from "./models.js";
 import { buildApplyUpdateArgs } from "./update-presentation.js";
 
 const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const LEGACY_REPORT_NAME = "dependency-report.json";
+const OSS_TOKEN_SECRET = "depanalyzer.ossIndexToken";
 
 export class DepAnalyzerCli {
   private readonly capabilities = new Map<string, Promise<CliCapabilities>>();
@@ -55,7 +57,12 @@ export class DepAnalyzerCli {
     return this.analyzeWithLegacyCli(args, projectPath, options);
   }
 
-  async planUpdates(projectPath: string, dynamic?: boolean): Promise<UpdatePlan> {
+  async planUpdates(
+    projectPath: string,
+    dynamic?: boolean,
+    report?: DependencyReport,
+    options: { cancellationToken?: vscode.CancellationToken; onProgress?: (event: CliProgressEvent) => void } = {}
+  ): Promise<UpdatePlan> {
     const capabilities = await this.capabilitiesFor(projectPath);
     if (!capabilities.updatePlan) {
       throw new Error(
@@ -66,12 +73,48 @@ export class DepAnalyzerCli {
     const config = vscode.workspace.getConfiguration("depanalyzer");
     const args = ["--no-telemetry", "update", projectPath, "--plan", "--output-file", "-"];
     if (dynamic ?? config.get<boolean>("dynamic", false)) args.push("--dynamic");
-
-    const result = await this.run(args, projectPath);
+    let reportUri: vscode.Uri | undefined;
+    if (report && capabilities.updateReportFile) {
+      await vscode.workspace.fs.createDirectory(this.context.globalStorageUri);
+      reportUri = vscode.Uri.joinPath(this.context.globalStorageUri, `update-report-${Date.now()}.json`);
+      await vscode.workspace.fs.writeFile(reportUri, Buffer.from(JSON.stringify(report), "utf8"));
+      args.push("--report-file", reportUri.fsPath);
+    }
+    if (capabilities.updateProgressJson) args.push("--progress-json");
+    const result = await this.run(args, projectPath, options).finally(async () => {
+      if (reportUri) await vscode.workspace.fs.delete(reportUri).then(undefined, () => undefined);
+    });
     if (result.exitCode !== 0) {
       throw new Error(`DepAnalyzer update --plan fallo con codigo ${result.exitCode}: ${result.stderr.trim()}`);
     }
     return parseJson<UpdatePlan>(result.stdout, "plan de actualizacion");
+  }
+
+  async applyUpdatesFromPlan(
+    projectPath: string,
+    plan: UpdatePlan,
+    suggestionIds: string[],
+    options: { cancellationToken?: vscode.CancellationToken; onProgress?: (event: CliProgressEvent) => void } = {}
+  ): Promise<UpdateExecutionResult> {
+    const capabilities = await this.capabilitiesFor(projectPath);
+    if (!capabilities.updatePlanFile || !capabilities.updateResultJson) {
+      throw new Error("Actualiza DepAnalyzer CLI para aplicar planes seguros sin recalcular.");
+    }
+    await vscode.workspace.fs.createDirectory(this.context.globalStorageUri);
+    const planUri = vscode.Uri.joinPath(this.context.globalStorageUri, `update-plan-${Date.now()}.json`);
+    await vscode.workspace.fs.writeFile(planUri, Buffer.from(JSON.stringify(plan), "utf8"));
+    const args = ["--no-telemetry", "update", projectPath, "--plan-file", planUri.fsPath, "--output-file", "-"];
+    for (const id of [...new Set(suggestionIds)]) args.push("--apply-id", id);
+    if (capabilities.updateProgressJson) args.push("--progress-json");
+    try {
+      const result = await this.run(args, projectPath, options);
+      if (result.exitCode !== 0) {
+        throw new Error(`DepAnalyzer update fallo con codigo ${result.exitCode}: ${result.stderr.trim()}`);
+      }
+      return parseJson<UpdateExecutionResult>(result.stdout, "resultado de actualizacion");
+    } finally {
+      await vscode.workspace.fs.delete(planUri).then(undefined, () => undefined);
+    }
   }
 
   async applyUpdate(projectPath: string, suggestionId: string, dynamic?: boolean): Promise<string> {
@@ -110,6 +153,18 @@ export class DepAnalyzerCli {
 
   resetCapabilities(): void {
     this.capabilities.clear();
+  }
+
+  async hasOssToken(): Promise<boolean> {
+    return Boolean((await this.context.secrets.get(OSS_TOKEN_SECRET))?.trim() || process.env.OSS_INDEX_TOKEN?.trim());
+  }
+
+  async storeOssToken(token: string): Promise<void> {
+    await this.context.secrets.store(OSS_TOKEN_SECRET, token.trim());
+  }
+
+  async removeOssToken(): Promise<void> {
+    await this.context.secrets.delete(OSS_TOKEN_SECRET);
   }
 
   async executablePath(cwd?: string): Promise<string> {
@@ -230,12 +285,13 @@ export class DepAnalyzerCli {
     } = {}
   ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
     const executable = await this.resolveExecutable(cwd);
+    const storedOssToken = (await this.context.secrets.get(OSS_TOKEN_SECRET))?.trim();
     this.output.appendLine(`> ${executable} ${args.join(" ")}`);
 
     return new Promise((resolve, reject) => {
       const child = spawn(executable, args, {
         cwd,
-        env: process.env,
+        env: storedOssToken ? { ...process.env, OSS_INDEX_TOKEN: storedOssToken } : process.env,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"]
       });
@@ -319,8 +375,13 @@ export class DepAnalyzerCli {
       return configured;
     }
 
-    const repositoryRoot = path.resolve(this.context.extensionPath, "..", "..");
     const scriptName = process.platform === "win32" ? "depanalyzer.bat" : "depanalyzer";
+    const bundledScript = path.join(this.context.extensionPath, "cli", "bin", scriptName);
+    if (await access(bundledScript).then(() => true).catch(() => false)) {
+      return bundledScript;
+    }
+
+    const repositoryRoot = path.resolve(this.context.extensionPath, "..", "..");
     const distributionScript = path.join(repositoryRoot, "build", "install", "depanalyzer", "bin", scriptName);
     if (await access(distributionScript).then(() => true).catch(() => false)) {
       return distributionScript;

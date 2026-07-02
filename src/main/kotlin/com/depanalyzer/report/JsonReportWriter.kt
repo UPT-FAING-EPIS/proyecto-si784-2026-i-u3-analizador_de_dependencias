@@ -55,6 +55,10 @@ internal class JsonReportWriter {
         field("severity", vulnerability.severity.name)
         vulnerability.cvssScore?.let { field("cvssScore", it) }
         vulnerability.description?.let { field("description", it) }
+        vulnerability.advisoryId?.let { field("advisoryId", it) }
+        vulnerability.title?.let { field("title", it) }
+        if (vulnerability.cwes.isNotEmpty()) field("cwes", vulnerability.cwes, ::string)
+        if (vulnerability.aliases.isNotEmpty()) field("aliases", vulnerability.aliases, ::string)
         field("affectedDependency") { writeAffectedDependency(vulnerability.affectedDependency) }
         field("source", vulnerability.source.name)
         vulnerability.retrievedAt?.let { field("retrievedAt", it.toString()) }
@@ -115,6 +119,8 @@ internal class JsonReportWriter {
         field("projectType", analysis.projectType)
         field("ecosystems", analysis.ecosystems, ::string)
         field("durationMs", analysis.durationMs)
+        analysis.inputFingerprint?.let { field("inputFingerprint", it) }
+        field("vulnerabilityCoverage", analysis.vulnerabilityCoverage.name)
         field("warnings", analysis.warnings, ::string)
         field("providers") {
             obj {

@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class DependencyReport(
-    val schemaVersion: String = "1.1",
+    val schemaVersion: String = "1.3",
     val projectName: String,
     val upToDate: List<DependencyInfo> = emptyList(),
     val outdated: List<OutdatedDependency> = emptyList(),
@@ -23,6 +23,12 @@ enum class AnalysisMode {
     STATIC_FALLBACK
 }
 
+enum class VulnerabilityCoverage {
+    COMPLETE,
+    FALLBACK,
+    UNAVAILABLE
+}
+
 data class ProviderAnalysisMetadata(
     val requested: String,
     val used: List<String> = emptyList(),
@@ -36,6 +42,8 @@ data class AnalysisMetadata(
     val projectType: String,
     val ecosystems: List<String> = emptyList(),
     val durationMs: Long,
+    val inputFingerprint: String? = null,
+    val vulnerabilityCoverage: VulnerabilityCoverage = VulnerabilityCoverage.UNAVAILABLE,
     val warnings: List<String> = emptyList(),
     val providers: ProviderAnalysisMetadata
 )

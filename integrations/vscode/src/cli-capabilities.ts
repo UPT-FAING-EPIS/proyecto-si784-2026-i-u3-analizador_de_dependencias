@@ -9,6 +9,11 @@ export interface CliCapabilities {
   vulnerabilityChains: boolean;
   updatePlan: boolean;
   applyById: boolean;
+  updateReportFile: boolean;
+  updatePlanFile: boolean;
+  updateResultJson: boolean;
+  updateProgressJson: boolean;
+  updateLockfileSync: boolean;
   modernContract: boolean;
 }
 
@@ -21,6 +26,11 @@ export function detectCliCapabilities(analyzeHelp: string, updateHelp: string): 
     vulnerabilityChains: analyzeHelp.includes("--show-chains"),
     updatePlan: updateHelp.includes("--plan") && updateHelp.includes("--output-file"),
     applyById: updateHelp.includes("--apply-id"),
+    updateReportFile: false,
+    updatePlanFile: false,
+    updateResultJson: false,
+    updateProgressJson: false,
+    updateLockfileSync: false,
     modernContract: false
   };
 }
@@ -36,6 +46,11 @@ export function capabilitiesFromDocument(document: CliCapabilityDocument): CliCa
     vulnerabilityChains: feature("report.vulnerabilityChains"),
     updatePlan: feature("update.plan"),
     applyById: feature("update.applyById"),
+    updateReportFile: feature("update.reportFile"),
+    updatePlanFile: feature("update.planFile"),
+    updateResultJson: feature("update.applyResultJson"),
+    updateProgressJson: feature("update.progressJson"),
+    updateLockfileSync: feature("update.lockfileSync"),
     modernContract: true
   };
 }

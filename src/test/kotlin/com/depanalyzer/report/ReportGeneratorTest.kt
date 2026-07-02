@@ -184,11 +184,12 @@ class ReportGeneratorTest {
 
         val root = JsonMapper.builder().build().readTree(generator.toJson(report))
 
-        assertEquals("1.1", root.path("schemaVersion").asText())
+        assertEquals("1.3", root.path("schemaVersion").asText())
         assertEquals("pom.xml", root.path("directVulnerable").get(0).path("sourceLocation").path("file").asText())
         assertEquals("child", root.path("vulnerabilityChains").get(0).path("chain").get(1).path("id").asText())
         assertEquals("child", root.path("dependencyTree").get(0).path("children").get(0).path("artifactId").asText())
         assertEquals("DYNAMIC", root.path("analysis").path("actualMode").asText())
+        assertEquals("UNAVAILABLE", root.path("analysis").path("vulnerabilityCoverage").asText())
         assertEquals("MAVEN", root.path("analysis").path("ecosystems").get(0).asText())
         assertEquals("OSS_INDEX", root.path("analysis").path("providers").path("used").get(0).asText())
         assertEquals("AVAILABLE", root.path("analysis").path("providers").path("statuses").path("OSS_INDEX").asText())

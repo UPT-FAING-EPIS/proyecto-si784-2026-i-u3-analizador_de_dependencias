@@ -82,7 +82,7 @@ class UpdateCommandTest {
         )
 
         val json = Files.readString(outputFile)
-        assertTrue(json.contains("\"schemaVersion\" : \"1.0\""))
+        assertTrue(json.contains("\"schemaVersion\" : \"1.1\""))
         assertTrue(json.contains("\"id\" : \"${suggestion.suggestionId}\""))
     }
 

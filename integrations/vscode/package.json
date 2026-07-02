@@ -2,7 +2,7 @@
   "name": "depanalyzer-vscode",
   "displayName": "DepAnalyzer Security",
   "description": "Detecta dependencias vulnerables y desactualizadas desde Visual Studio Code.",
-  "version": "0.2.1",
+  "version": "0.4.0",
   "publisher": "DepAnalyzerUPT",
   "license": "MIT",
   "icon": "resources/depanalyzer.png",
@@ -60,13 +60,27 @@
     "onCommand:depanalyzer.filterDependencyTree",
     "onCommand:depanalyzer.guideCliUpgrade",
     "onCommand:depanalyzer.redetectCli",
-    "onCommand:depanalyzer.showOutput"
+    "onCommand:depanalyzer.showOutput",
+    "onCommand:depanalyzer.openDashboard",
+    "onCommand:depanalyzer.configureOssIndex"
   ],
   "contributes": {
     "commands": [
       {
         "command": "depanalyzer.scanWorkspace",
         "title": "DepAnalyzer: Analizar Workspace",
+        "category": "DepAnalyzer",
+        "icon": "$(play)"
+      },
+      {
+        "command": "depanalyzer.openDashboard",
+        "title": "DepAnalyzer: Abrir Dashboard",
+        "category": "DepAnalyzer",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "depanalyzer.configureOssIndex",
+        "title": "DepAnalyzer: Configurar OSS Index",
         "category": "DepAnalyzer"
       },
       {
@@ -196,14 +210,10 @@
     "views": {
       "depanalyzer": [
         {
-          "id": "depanalyzer.findings",
-          "name": "Hallazgos",
-          "contextualTitle": "DepAnalyzer"
-        },
-        {
-          "id": "depanalyzer.dependencyTree",
-          "name": "Arbol de dependencias",
-          "contextualTitle": "DepAnalyzer"
+          "id": "depanalyzer.summary",
+          "name": "Resumen",
+          "type": "webview",
+          "contextualTitle": "DepAnalyzer Security"
         }
       ]
     },
@@ -211,23 +221,18 @@
       "view/title": [
         {
           "command": "depanalyzer.scanWorkspace",
-          "when": "view == depanalyzer.findings",
+          "when": "view == depanalyzer.summary",
           "group": "navigation"
         },
         {
-          "command": "depanalyzer.manageUpdates",
-          "when": "view == depanalyzer.findings",
+          "command": "depanalyzer.openDashboard",
+          "when": "view == depanalyzer.summary",
           "group": "navigation@2"
         },
         {
           "command": "depanalyzer.clearDiagnostics",
-          "when": "view == depanalyzer.findings",
-          "group": "navigation@3"
-        },
-        {
-          "command": "depanalyzer.filterDependencyTree",
-          "when": "view == depanalyzer.dependencyTree",
-          "group": "navigation@1"
+          "when": "view == depanalyzer.summary",
+          "group": "2_cleanup"
         }
       ],
       "view/item/context": [
@@ -259,8 +264,9 @@
     "build": "tsc -p tsconfig.json",
     "watch": "tsc -watch -p tsconfig.json",
     "test": "npm run build && node --test dist/**/*.test.js",
-    "package": "vsce package",
-    "publish": "vsce publish"
+    "bundle:cli": "node scripts/prepare-cli.mjs",
+    "package": "npm run bundle:cli && vsce package",
+    "publish": "npm run bundle:cli && vsce publish"
   },
   "dependencies": {
     "cross-spawn": "7.0.6"

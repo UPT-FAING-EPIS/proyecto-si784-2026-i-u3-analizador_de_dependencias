@@ -2,7 +2,9 @@ package com.depanalyzer.cli
 
 import com.depanalyzer.core.ProjectAnalyzer
 import com.depanalyzer.parser.ProjectType
+import com.depanalyzer.parser.Ecosystem
 import com.depanalyzer.repository.OssIndexClient
+import com.depanalyzer.report.DependencyReport
 import com.depanalyzer.report.ReportGenerator
 import com.depanalyzer.telemetry.TelemetryClient
 import com.depanalyzer.telemetry.TelemetryEvent
@@ -29,7 +31,10 @@ import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.widgets.SelectList
 import com.github.ajalt.mordant.widgets.Text
 import java.nio.file.Path
+import java.io.File
 import kotlin.io.path.writeText
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.KotlinModule
 
 class Update(
     private val plannerFactory: (String?) -> UpdatePlanner = { token ->
@@ -79,6 +84,18 @@ class Update(
         "--output-file",
         help = "Ruta del plan JSON; use '-' para stdout"
     )
+    private val reportFile: String? by option(
+        "--report-file",
+        help = "Reutiliza un reporte JSON vigente para generar el plan"
+    )
+    private val planFile: String? by option(
+        "--plan-file",
+        help = "Aplica identificadores desde un plan JSON ya generado"
+    )
+    private val progressJson: Boolean by option(
+        "--progress-json",
+        help = "Emite eventos NDJSON de progreso por stderr"
+    ).flag(default = false)
 
     override fun run() {
         trackCommandAndFlagFeatures()
@@ -92,6 +109,10 @@ class Update(
             val targetPath = path ?: Path.of(".")
             if (planOnly) {
                 writePlan(targetPath)
+                return
+            }
+            if (planFile != null) {
+                applyPlanFile(targetPath)
                 return
             }
             val results = executeUpdate(
@@ -238,18 +259,19 @@ class Update(
 
     private fun writePlan(targetPath: Path) {
         require(getApplyIdsFromCli().isEmpty()) { "--plan y --apply-id no pueden usarse juntos" }
-        val plan = plannerFactory(getTokenFromCliOrEnv()).plan(
-            targetPath,
-            UpdateAnalysisOptions(dynamic = getDynamicFromCli())
-        )
+        emitProgress("started", "Preparando plan de actualizaciones", "plan", 0, 2)
+        val planner = plannerFactory(getTokenFromCliOrEnv())
+        val plan = reportFile?.let { file ->
+            emitProgress("phase", "Reutilizando el ultimo analisis", "report", 1, 2)
+            planner.planFromReport(targetPath, readReport(File(file)))
+        } ?: planner.plan(targetPath, UpdateAnalysisOptions(dynamic = getDynamicFromCli()))
         val suggestions = if (getOnlySecurityFromCli()) {
             plan.suggestions.filter { it.reason == UpdateReason.CVE }
         } else {
             plan.suggestions
         }
         val json = ReportGenerator().toJsonUpdatePlan(
-            projectType = plan.projectType,
-            buildFile = plan.buildFile.absolutePath,
+            plan = plan,
             suggestions = suggestions
         )
 
@@ -260,7 +282,70 @@ class Update(
             path.writeText(json)
             echo("Plan JSON exportado a: $path")
         }
+        emitProgress("completed", "Plan listo", "plan", 2, 2)
     }
+
+    private fun applyPlanFile(targetPath: Path) {
+        require(!planOnly) { "--plan y --plan-file no pueden usarse juntos" }
+        val ids = getApplyIdsFromCli().toSet()
+        require(ids.isNotEmpty()) { "--plan-file requiere al menos un --apply-id" }
+        emitProgress("started", "Validando plan", "validate", 0, 3)
+        val plan = readPlan(File(requireNotNull(planFile)))
+        val service = TransactionalUpdateService(updaterFactory)
+        emitProgress("phase", "Aplicando cambios seleccionados", "apply", 1, 3)
+        val result = service.apply(targetPath.toFile(), plan, ids)
+        emitProgress("phase", "Verificando archivos actualizados", "verify", 2, 3)
+        val json = ReportGenerator().toJsonUpdateResult(result)
+        if (outputFile == "-") {
+            echo(json)
+        } else {
+            val path = outputFile?.let(Path::of) ?: Path.of("dependency-update-result.json")
+            path.writeText(json)
+            echo("Resultado JSON exportado a: $path")
+        }
+        emitProgress("completed", "Actualizaciones aplicadas", "complete", 3, 3)
+    }
+
+    private fun readReport(file: File): DependencyReport {
+        require(file.isFile) { "No existe el reporte: ${file.absolutePath}" }
+        return jsonMapper().readValue(file, DependencyReport::class.java)
+    }
+
+    private fun readPlan(file: File): UpdatePlan {
+        require(file.isFile) { "No existe el plan: ${file.absolutePath}" }
+        val root = jsonMapper().readTree(file)
+        require(root.path("schemaVersion").asText().startsWith("1.")) { "Version de plan no compatible" }
+        val projectType = ProjectType.valueOf(root.path("projectType").asText())
+        val suggestions = root.path("suggestions").toList().map { node ->
+            UpdateSuggestion(
+                groupId = node.path("groupId").asText(),
+                artifactId = node.path("artifactId").asText(),
+                currentVersion = node.path("currentVersion").asText(),
+                newVersion = node.path("newVersion").asText(),
+                reason = UpdateReason.valueOf(node.path("reason").asText()),
+                targetType = UpdateTargetType.valueOf(node.path("targetType").asText()),
+                viaDirectCoordinate = node.path("viaDirectCoordinate").takeUnless { it.isMissingNode || it.isNull }?.asText(),
+                ecosystem = Ecosystem.valueOf(node.path("ecosystem").asText())
+            )
+        }
+        return UpdatePlan(
+            projectType = projectType,
+            buildFile = File(root.path("buildFile").asText()),
+            suggestions = suggestions,
+            inputFingerprint = root.path("inputFingerprint").asText(),
+            generatedAt = root.path("generatedAt").asText()
+        )
+    }
+
+    private fun emitProgress(type: String, message: String, phase: String, current: Int, total: Int) {
+        if (progressJson) {
+            System.err.println(ProgressEventJsonWriter.write(ProgressEvent(type, message, phase, current, total)))
+        }
+    }
+
+    private fun jsonMapper(): JsonMapper = JsonMapper.builder()
+        .addModule(KotlinModule.Builder().build())
+        .build()
 
     private fun getDynamicFromCli(): Boolean {
         return runCatching { dynamic }.getOrDefault(false)

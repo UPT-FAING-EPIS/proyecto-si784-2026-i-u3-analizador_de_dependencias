@@ -3,6 +3,7 @@ import type { CliCapabilities } from "./cli-capabilities.js";
 import { canSafelyUpdate, displayVersion } from "./finding-presentation.js";
 import { buildFindingGroups, countFindings, type FindingGroup, type FindingGroupId } from "./findings-groups.js";
 import type { DependencyReport, Finding, FindingCommandArg } from "./models.js";
+import { relationshipLabel, severityLabel } from "./presentation-labels.js";
 import { summarizeFindings } from "./report-utils.js";
 
 type DepAnalyzerTreeItem =
@@ -280,24 +281,6 @@ function contextFor(finding: Finding): string {
   return parts.join(".");
 }
 
-function severityLabel(severity?: Finding["severity"]): string {
-  switch (severity) {
-    case "CRITICAL": return "CRITICA";
-    case "HIGH": return "ALTA";
-    case "MEDIUM": return "MEDIA";
-    case "LOW": return "BAJA";
-    case "UNKNOWN":
-    default:
-      return "SIN CLASIFICAR";
-  }
-}
-
-function relationshipLabel(relationship?: Finding["relationship"]): string {
-  if (relationship === "direct") return "directa";
-  if (relationship === "transitive") return "transitiva";
-  return "relacion no determinada";
-}
-
 function legacyCapabilities(): CliCapabilities {
   return {
     reportSchemas: ["1.0"],
@@ -307,6 +290,11 @@ function legacyCapabilities(): CliCapabilities {
     vulnerabilityChains: false,
     updatePlan: false,
     applyById: false,
+    updateReportFile: false,
+    updatePlanFile: false,
+    updateResultJson: false,
+    updateProgressJson: false,
+    updateLockfileSync: false,
     modernContract: false
   };
 }

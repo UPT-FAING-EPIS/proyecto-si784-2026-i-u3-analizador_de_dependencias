@@ -9,6 +9,10 @@ export interface SourceLocation {
 
 export interface Vulnerability {
   cveId: string;
+  advisoryId?: string;
+  title?: string;
+  cwes?: string[];
+  aliases?: string[];
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
   cvssScore?: number;
   description?: string;
@@ -32,6 +36,8 @@ export interface AnalysisMetadata {
   projectType: string;
   ecosystems?: string[];
   durationMs: number;
+  inputFingerprint?: string;
+  vulnerabilityCoverage?: "COMPLETE" | "FALLBACK" | "UNAVAILABLE";
   warnings: string[];
   providers: ProviderAnalysisMetadata;
 }
@@ -116,7 +122,21 @@ export interface UpdatePlan {
   schemaVersion: string;
   projectType: string;
   buildFile: string;
+  inputFingerprint?: string;
+  generatedAt?: string;
   suggestions: UpdateSuggestion[];
+}
+
+export interface UpdateExecutionResult {
+  schemaVersion: string;
+  status: string;
+  buildFile: string;
+  backupFiles: string[];
+  changedFiles: string[];
+  lockfileStatus: "UPDATED" | "NOT_PRESENT" | "NOT_APPLICABLE";
+  durationMs: number;
+  warnings: string[];
+  applied: UpdateSuggestion[];
 }
 
 export interface UpdateCandidate {

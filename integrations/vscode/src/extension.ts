@@ -5,20 +5,34 @@ import { DependencyTreeProvider, type DependencyTreeFilter } from "./dependency-
 import { FindingsProvider } from "./findings-view.js";
 import { isSupportedDependencyFile } from "./report-utils.js";
 import type { UpdateCandidate } from "./models.js";
+import { SummaryViewProvider } from "./summary-view.js";
+import { DashboardPanel } from "./dashboard-panel.js";
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("DepAnalyzer");
   const findingsProvider = new FindingsProvider();
   const dependencyTreeProvider = new DependencyTreeProvider();
+  const summaryProvider = new SummaryViewProvider();
+  const dashboard = new DashboardPanel(context);
   const cli = new DepAnalyzerCli(context, output);
-  const controller = new DepAnalyzerController(context, cli, findingsProvider, dependencyTreeProvider, output);
+  const controller = new DepAnalyzerController(
+    context,
+    cli,
+    findingsProvider,
+    dependencyTreeProvider,
+    summaryProvider,
+    dashboard,
+    output
+  );
+  dashboard.setMessageHandler((message) => controller.handleDashboardMessage(message));
 
   context.subscriptions.push(
     output,
     controller,
-    vscode.window.registerTreeDataProvider("depanalyzer.findings", findingsProvider),
-    vscode.window.registerTreeDataProvider("depanalyzer.dependencyTree", dependencyTreeProvider),
+    vscode.window.registerWebviewViewProvider("depanalyzer.summary", summaryProvider),
     vscode.commands.registerCommand("depanalyzer.scanWorkspace", () => controller.analyzeWorkspace()),
+    vscode.commands.registerCommand("depanalyzer.openDashboard", () => controller.openDashboard()),
+    vscode.commands.registerCommand("depanalyzer.configureOssIndex", () => controller.configureOssIndex()),
     vscode.commands.registerCommand("depanalyzer.showOutput", () => controller.showOutput()),
     vscode.commands.registerCommand("depanalyzer.guideCliUpgrade", () => controller.guideCliUpgrade()),
     vscode.commands.registerCommand("depanalyzer.redetectCli", () => controller.resetCliCapabilities(true)),
@@ -67,9 +81,10 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  void controller.initializeOssStatus();
   const config = vscode.workspace.getConfiguration("depanalyzer");
   if (config.get<boolean>("autoAnalyze", true)) {
-    void controller.analyzeWorkspace();
+    void controller.analyzeWorkspace(false);
   }
 }
 

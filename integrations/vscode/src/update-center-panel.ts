@@ -164,7 +164,7 @@ function suggestionCard(suggestion: UpdateSuggestion, preselected: boolean): str
         <span class="content">
           <span class="title-row">
             <strong>${escapeHtml(coordinateFor(suggestion))}</strong>
-            <span class="badge">${security ? "SEGURIDAD" : "DESACTUALIZADA"}</span>
+            <span class="badge">${security ? "Seguridad" : "Desactualizada"}</span>
           </span>
           <span class="versions">
             ${escapeHtml(displayVersion(suggestion.currentVersion))}

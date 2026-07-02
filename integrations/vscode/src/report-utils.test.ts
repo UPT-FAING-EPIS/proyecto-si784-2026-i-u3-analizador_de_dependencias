@@ -87,3 +87,41 @@ test("joins a transitive CVE with its complete dependency chain", () => {
   ]);
   assert.equal(findings[0]?.projectPath, "C:\\demo");
 });
+
+test("classifies outdated lockfile dependencies from the shortest tree path", () => {
+  const leaf = {
+    groupId: "npm",
+    artifactId: "transitive",
+    currentVersion: "1.0.0",
+    isDirectDependency: false,
+    isDependencyManagement: false,
+    vulnerabilities: [],
+    children: [],
+    ecosystem: "NPM"
+  };
+  const findings = flattenFindings({
+    schemaVersion: "1.2",
+    projectName: "npm-demo",
+    outdated: [{
+      groupId: "npm",
+      artifactId: "transitive",
+      currentVersion: "1.0.0",
+      latestVersion: "1.1.0",
+      ecosystem: "NPM"
+    }],
+    dependencyTree: [{
+      groupId: "npm",
+      artifactId: "root",
+      currentVersion: "2.0.0",
+      isDirectDependency: true,
+      isDependencyManagement: false,
+      vulnerabilities: [],
+      children: [leaf],
+      ecosystem: "NPM"
+    }]
+  });
+
+  assert.equal(findings[0]?.relationship, "transitive");
+  assert.equal(findings[0]?.directRoot, "root:2.0.0");
+  assert.deepEqual(findings[0]?.dependencyChain, ["root:2.0.0", "transitive:1.0.0"]);
+});

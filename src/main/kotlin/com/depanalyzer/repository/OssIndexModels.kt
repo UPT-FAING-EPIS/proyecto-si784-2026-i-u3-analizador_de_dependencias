@@ -39,7 +39,9 @@ fun OssIndexVulnerability.toVulnerability(
         affectedDependency = affectedDependency,
         source = VulnerabilitySource.OSS_INDEX,
         retrievedAt = retrievedAt,
-        referenceUrl = reference
+        referenceUrl = reference,
+        advisoryId = id,
+        title = title
     )
 }
 

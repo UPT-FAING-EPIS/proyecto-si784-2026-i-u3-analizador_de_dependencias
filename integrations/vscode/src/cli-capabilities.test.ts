@@ -20,6 +20,11 @@ test("detects the current stdout and update-plan CLI interface", () => {
     vulnerabilityChains: true,
     updatePlan: true,
     applyById: true,
+    updateReportFile: false,
+    updatePlanFile: false,
+    updateResultJson: false,
+    updateProgressJson: false,
+    updateLockfileSync: false,
     modernContract: false
   });
 });
@@ -38,6 +43,11 @@ test("falls back for the public legacy CLI interface", () => {
     vulnerabilityChains: false,
     updatePlan: false,
     applyById: false,
+    updateReportFile: false,
+    updatePlanFile: false,
+    updateResultJson: false,
+    updateProgressJson: false,
+    updateLockfileSync: false,
     modernContract: false
   });
 });
@@ -52,7 +62,12 @@ test("uses the structured CLI capabilities contract", () => {
       "report.dependencyTree": true,
       "report.vulnerabilityChains": true,
       "update.plan": true,
-      "update.applyById": true
+      "update.applyById": true,
+      "update.reportFile": true,
+      "update.planFile": true,
+      "update.applyResultJson": true,
+      "update.progressJson": true,
+      "update.lockfileSync": true
     }
   }));
 
@@ -65,6 +80,11 @@ test("uses the structured CLI capabilities contract", () => {
     vulnerabilityChains: true,
     updatePlan: true,
     applyById: true,
+    updateReportFile: true,
+    updatePlanFile: true,
+    updateResultJson: true,
+    updateProgressJson: true,
+    updateLockfileSync: true,
     modernContract: true
   });
 });

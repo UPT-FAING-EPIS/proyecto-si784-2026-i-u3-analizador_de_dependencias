@@ -21,7 +21,7 @@ application {
 group = "com.depanalyzer"
 version = providers.gradleProperty("releaseVersion")
     .orElse(providers.environmentVariable("PROJECT_VERSION"))
-    .orElse("2.2.1-SNAPSHOT")
+    .orElse("2.3.0-SNAPSHOT")
     .map { it.removePrefix("v") }
     .get()
 

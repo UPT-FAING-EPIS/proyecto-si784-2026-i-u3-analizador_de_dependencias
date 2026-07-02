@@ -1,17 +1,22 @@
 package com.depanalyzer.update
 
 import com.depanalyzer.core.ProjectAnalyzer
+import com.depanalyzer.core.InputFingerprint
 import com.depanalyzer.parser.*
 import com.depanalyzer.parser.npm.NpmPackageParser
 import com.depanalyzer.parser.python.PyprojectPoetryParser
 import com.depanalyzer.parser.python.RequirementsParser
+import com.depanalyzer.report.DependencyReport
 import java.io.File
 import java.nio.file.Path
+import java.time.Instant
 
 data class UpdatePlan(
     val projectType: ProjectType,
     val buildFile: File,
-    val suggestions: List<UpdateSuggestion>
+    val suggestions: List<UpdateSuggestion>,
+    val inputFingerprint: String = "",
+    val generatedAt: String = Instant.now().toString()
 )
 
 data class UpdateAnalysisOptions(
@@ -21,6 +26,8 @@ data class UpdateAnalysisOptions(
 
 interface UpdatePlanner {
     fun plan(projectDir: Path, options: UpdateAnalysisOptions = UpdateAnalysisOptions()): UpdatePlan
+    fun planFromReport(projectDir: Path, report: DependencyReport): UpdatePlan =
+        throw UnsupportedOperationException("Este planner no admite reportes reutilizables")
 }
 
 class AnalyzerUpdatePlanner(
@@ -41,6 +48,29 @@ class AnalyzerUpdatePlanner(
             disableGradle = !options.dynamic,
             timeoutSeconds = options.timeoutSeconds
         )
+        return buildPlan(projectDir, projectType, report, options.dynamic)
+    }
+
+    override fun planFromReport(projectDir: Path, report: DependencyReport): UpdatePlan {
+        val projectType = detector.detect(projectDir)
+        val currentFingerprint = InputFingerprint.compute(projectDir, projectType)
+        require(report.analysis?.inputFingerprint == currentFingerprint) {
+            "El reporte ya no coincide con los archivos de dependencias del proyecto"
+        }
+        return buildPlan(
+            projectDir,
+            projectType,
+            report,
+            report.analysis?.actualMode == com.depanalyzer.report.AnalysisMode.DYNAMIC
+        )
+    }
+
+    private fun buildPlan(
+        projectDir: Path,
+        projectType: ProjectType,
+        report: DependencyReport,
+        dynamic: Boolean
+    ): UpdatePlan {
         val buildFile = resolveBuildFile(projectDir, projectType)
         val declaredCoordinates = declaredCoordinates(buildFile, projectType)
         val vulnerableCoordinates = (report.directVulnerable + report.transitiveVulnerable)
@@ -72,7 +102,7 @@ class AnalyzerUpdatePlanner(
                 )
             }
 
-        val transitiveOverrideSuggestions = if (options.dynamic) {
+        val transitiveOverrideSuggestions = if (dynamic || projectType == ProjectType.NPM) {
             buildTransitiveOverrideSuggestions(
                 report = report,
                 outdatedByGaAndVersion = outdatedByGaAndVersion,
@@ -89,7 +119,8 @@ class AnalyzerUpdatePlanner(
         return UpdatePlan(
             projectType = projectType,
             buildFile = buildFile,
-            suggestions = suggestions
+            suggestions = suggestions,
+            inputFingerprint = InputFingerprint.compute(projectDir, projectType)
         )
     }
 

@@ -19,6 +19,7 @@ class ProjectAnalyzer(
     private val repositoryClient: RepositoryClient = RepositoryClient(),
     private val ossIndexClient: OssIndexClient = OssIndexClient(),
     private val nvdClient: NvdClient = NvdClient(),
+    private val npmAuditClient: NpmAuditClient = NpmAuditClient(),
     private val projectDetector: ProjectDetector = ProjectDetector()
 ) {
     fun analyze(
@@ -318,21 +319,28 @@ class ProjectAnalyzer(
                     }
                     VulnerabilityMerger.mergeVulnerabilities(ossVulns, nvdVulns)
                 } else {
-                    runCatching {
-                        if (mavenDependencies.isEmpty()) emptyMap() else nvdClient.getVulnerabilities(mavenDependencies)
-                    }
-                        .onSuccess {
-                            if (mavenDependencies.isNotEmpty()) providersUsed += "NVD"
-                        }
-                        .getOrElse {
-                            val warning = "No se pudo consultar OSS ni NVD. Vulnerability analysis skipped."
-                            providerWarnings += "NVD no disponible: ${it.message ?: it.javaClass.simpleName}"
-                            ProgressTracker.logWarning(warning)
-                            if (verbose) {
-                                System.err.println("  Details OSS/NVD: ${it.message}")
-                            }
+                    when {
+                        type == ProjectType.NPM -> runCatching {
+                            ProgressTracker.logSecurity("Usando npm audit como fuente alternativa...")
+                            npmAuditClient.getVulnerabilities(dirFile, dependencies)
+                        }.onSuccess {
+                            providersUsed += "NPM_AUDIT"
+                        }.getOrElse {
+                            providerWarnings += "npm audit no disponible: ${it.message ?: it.javaClass.simpleName}"
+                            ProgressTracker.logWarning("No se pudieron evaluar vulnerabilidades npm.")
                             emptyMap()
                         }
+                        mavenDependencies.isNotEmpty() -> runCatching {
+                            nvdClient.getVulnerabilities(mavenDependencies)
+                        }.onSuccess {
+                            providersUsed += "NVD"
+                        }.getOrElse {
+                            providerWarnings += "NVD no disponible: ${it.message ?: it.javaClass.simpleName}"
+                            ProgressTracker.logWarning("No se pudo consultar OSS ni NVD. Vulnerability analysis skipped.")
+                            emptyMap()
+                        }
+                        else -> emptyMap()
+                    }
                 }
             }
         }
@@ -391,6 +399,13 @@ class ProjectAnalyzer(
                 projectType = type.name,
                 ecosystems = dependencies.map { it.ecosystem.name }.distinct().sorted(),
                 durationMs = System.currentTimeMillis() - analysisStartedAt,
+                inputFingerprint = InputFingerprint.compute(projectDir, type),
+                vulnerabilityCoverage = when {
+                    providersUsed.isEmpty() -> VulnerabilityCoverage.UNAVAILABLE
+                    "NPM_AUDIT" in providersUsed && providerWarnings.any { it.startsWith("OSS Index") } ->
+                        VulnerabilityCoverage.FALLBACK
+                    else -> VulnerabilityCoverage.COMPLETE
+                },
                 warnings = analysisWarnings.distinct(),
                 providers = ProviderAnalysisMetadata(
                     requested = vulnerabilitySourceMode.name,
@@ -415,7 +430,8 @@ class ProjectAnalyzer(
         warnings: List<String>
     ): Map<String, String> = linkedMapOf(
         "OSS_INDEX" to providerStatus("OSS_INDEX", providersUsed, warnings),
-        "NVD" to providerStatus("NVD", providersUsed, warnings)
+        "NVD" to providerStatus("NVD", providersUsed, warnings),
+        "NPM_AUDIT" to providerStatus("NPM_AUDIT", providersUsed, warnings)
     )
 
     private fun providerStatus(

@@ -6,6 +6,8 @@ import { DepAnalyzerCli } from "./cli.js";
 import { DependencyTreeProvider } from "./dependency-tree-view.js";
 import { canSafelyUpdate, displayVersion } from "./finding-presentation.js";
 import { FindingsProvider } from "./findings-view.js";
+import { DashboardPanel, type DashboardMessage } from "./dashboard-panel.js";
+import { SummaryViewProvider } from "./summary-view.js";
 import { buildFindingDetailsHtml } from "./finding-details-panel.js";
 import type {
   DependencyReport,
@@ -15,6 +17,7 @@ import type {
   UpdatePlan,
   UpdateSuggestion
 } from "./models.js";
+import { severityLabel } from "./presentation-labels.js";
 import { flattenFindings, isSupportedDependencyFile, keyFor } from "./report-utils.js";
 import {
   buildUpdateCenterErrorHtml,
@@ -38,6 +41,7 @@ interface ProjectAnalysisResult {
   report: DependencyReport;
   findings: Finding[];
   capabilities: CliCapabilities;
+  ossTokenConfigured: boolean;
 }
 
 export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeActionProvider {
@@ -48,12 +52,15 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
   private readonly saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private generation = 0;
   private lastProjectPath: string | undefined;
+  private currentUpdatePlan: UpdatePlan | undefined;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly cli: DepAnalyzerCli,
     private readonly findingsProvider: FindingsProvider,
     private readonly dependencyTreeProvider: DependencyTreeProvider,
+    private readonly summaryProvider: SummaryViewProvider,
+    private readonly dashboard: DashboardPanel,
     private readonly output: vscode.OutputChannel
   ) {}
 
@@ -63,19 +70,19 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     this.diagnostics.dispose();
   }
 
-  async analyzeWorkspace(): Promise<void> {
+  async analyzeWorkspace(openDashboard = true): Promise<void> {
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (folders.length === 0) {
       void vscode.window.showWarningMessage("DepAnalyzer necesita un workspace abierto.");
       return;
     }
-    await Promise.all(folders.map((folder) => this.analyzeProject(folder.uri.fsPath)));
+    await Promise.all(folders.map((folder) => this.analyzeProject(folder.uri.fsPath, openDashboard)));
   }
 
   async analyzeDocument(document: vscode.TextDocument): Promise<void> {
     if (!isSupportedDependencyFile(document.fileName)) return;
     const folder = vscode.workspace.getWorkspaceFolder(document.uri);
-    await this.analyzeProject(folder?.uri.fsPath ?? path.dirname(document.fileName));
+    await this.analyzeProject(folder?.uri.fsPath ?? path.dirname(document.fileName), true);
   }
 
   scheduleDocumentAnalysis(document: vscode.TextDocument): void {
@@ -86,7 +93,7 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     if (existing) clearTimeout(existing);
     this.saveTimers.set(projectPath, setTimeout(() => {
       this.saveTimers.delete(projectPath);
-      void this.analyzeProject(projectPath);
+      void this.analyzeProject(projectPath, false);
     }, 750));
   }
 
@@ -96,6 +103,8 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     this.results.clear();
     this.findingsProvider.clear();
     this.dependencyTreeProvider.clear();
+    this.summaryProvider.clear();
+    this.currentUpdatePlan = undefined;
   }
 
   showOutput(): void {
@@ -170,27 +179,26 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
       void vscode.window.showWarningMessage("Selecciona un hallazgo de DepAnalyzer para ver el detalle.");
       return;
     }
-    const panel = vscode.window.createWebviewPanel(
-      "depanalyzer.findingDetails",
-      `DepAnalyzer: ${arg.finding.coordinate}`,
-      vscode.ViewColumn.Beside,
-      { enableScripts: true }
-    );
-    const nonce = createNonce();
-    panel.webview.html = buildFindingDetailsHtml(arg.finding, nonce);
-    panel.webview.onDidReceiveMessage((message: { command?: string }) => {
-      if (message.command === "openLocation") void this.openFindingLocation(arg);
-      if (message.command === "openReference") void this.openFindingReference(arg);
-      if (message.command === "prepareUpdate") void this.manageUpdates(arg);
-      if (message.command === "enableDynamic") {
-        void this.enableDynamicAndReanalyze(arg.projectPath).then((changed) => {
-          if (changed) panel.dispose();
-        });
-      }
-    });
+    this.openDashboard("findings");
+  }
+
+  async initializeOssStatus(): Promise<void> {
+    this.summaryProvider.updateOssConfiguration(await this.cli.hasOssToken());
   }
 
   async manageUpdates(candidateOrArg?: UpdateCandidate | FindingCommandArg): Promise<void> {
+    const projectPath = candidateOrArg?.projectPath ?? this.lastProjectPath ??
+      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!projectPath) {
+      void vscode.window.showWarningMessage("DepAnalyzer necesita un workspace abierto.");
+      return;
+    }
+    this.lastProjectPath = projectPath;
+    this.openDashboard("updates");
+    await this.loadDashboardUpdates();
+  }
+
+  private async manageUpdatesLegacy(candidateOrArg?: UpdateCandidate | FindingCommandArg): Promise<void> {
     const projectPath = candidateOrArg?.projectPath ??
       this.lastProjectPath ??
       vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -272,6 +280,140 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     await renderPlan();
   }
 
+  openDashboard(tab = "summary"): void {
+    const result = this.lastProjectPath ? this.results.get(this.lastProjectPath) : undefined;
+    if (result && this.lastProjectPath) {
+      this.dashboard.update({ projectPath: this.lastProjectPath, ...result });
+    }
+    this.dashboard.show(tab);
+  }
+
+  handleDashboardMessage(message: DashboardMessage): void {
+    if (message.command === "scan") void this.analyzeWorkspace(true);
+    if (message.command === "loadUpdates") void this.loadDashboardUpdates();
+    if (message.command === "showOutput") this.showOutput();
+    if (message.command === "configureOss") void this.configureOssIndex();
+    if (message.command === "applyUpdates") void this.applyDashboardUpdates(message.ids);
+    if (message.command === "openLocation" || message.command === "openReference") {
+      const projectPath = this.lastProjectPath;
+      const finding = projectPath ? this.results.get(projectPath)?.findings[message.findingIndex] : undefined;
+      if (!projectPath || !finding) return;
+      const arg = { projectPath, finding };
+      if (message.command === "openLocation") void this.openFindingLocation(arg);
+      else void this.openFindingReference(arg);
+    }
+  }
+
+  async configureOssIndex(): Promise<void> {
+    const token = await vscode.window.showInputBox({
+      title: "Configurar Sonatype OSS Index",
+      prompt: "Pega tu token personal. Se guardará cifrado por VS Code y nunca aparecerá en logs.",
+      placeHolder: "Token de OSS Index",
+      password: true,
+      ignoreFocusOut: true,
+      validateInput: (value) => value.trim().length < 8 ? "El token parece demasiado corto." : undefined
+    });
+    if (!token) return;
+    await this.cli.storeOssToken(token);
+    this.summaryProvider.updateOssConfiguration(true);
+    void vscode.window.showInformationMessage("Token de OSS Index guardado de forma segura. Reanalizando…");
+    if (this.lastProjectPath) await this.analyzeProject(this.lastProjectPath, true);
+  }
+
+  private async loadDashboardUpdates(): Promise<void> {
+    const projectPath = this.lastProjectPath;
+    const result = projectPath ? this.results.get(projectPath) : undefined;
+    if (!projectPath || !result) {
+      void vscode.window.showWarningMessage("Analiza el workspace antes de preparar actualizaciones.");
+      return;
+    }
+    if (!result.capabilities.updateReportFile || !result.capabilities.updatePlanFile) {
+      this.dashboard.setUpdateState(undefined, {
+        kind: "error",
+        message: "Actualiza DepAnalyzer CLI para usar el centro de actualizaciones seguro."
+      });
+      await this.guideCliUpgrade();
+      return;
+    }
+    this.dashboard.setUpdateState(undefined, { kind: "loading", message: "Preparando plan desde el último análisis…" });
+    const cancellation = new vscode.CancellationTokenSource();
+    try {
+      const plan = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "DepAnalyzer: preparando actualizaciones",
+          cancellable: true
+        },
+        (progress, token) => {
+          const subscription = token.onCancellationRequested(() => cancellation.cancel());
+          return this.cli.planUpdates(projectPath, false, result.report, {
+            cancellationToken: cancellation.token,
+            onProgress: (event) => progress.report({ message: event.message })
+          }).finally(() => subscription.dispose());
+        }
+      );
+      this.currentUpdatePlan = plan;
+      this.dashboard.setUpdateState(plan, { kind: "idle", message: "Plan listo" });
+    } catch (error) {
+      const message = errorMessage(error);
+      this.output.appendLine(message);
+      this.dashboard.setUpdateState(undefined, { kind: "error", message });
+    } finally {
+      cancellation.dispose();
+    }
+  }
+
+  private async applyDashboardUpdates(ids: string[]): Promise<void> {
+    const projectPath = this.lastProjectPath;
+    const result = projectPath ? this.results.get(projectPath) : undefined;
+    if (!projectPath || !result) return;
+    const plan = this.currentUpdatePlan;
+    if (!plan || ids.length === 0) return;
+    const selected = plan.suggestions.filter((item) => ids.includes(item.id));
+    if (selected.length !== new Set(ids).size) {
+      void vscode.window.showWarningMessage("La selección ya no coincide con el plan vigente.");
+      return;
+    }
+    const buildFile = resolveBuildFile(projectPath, plan.buildFile);
+    const snapshot = await this.createBuildFileSnapshot(buildFile);
+    const cancellation = new vscode.CancellationTokenSource();
+    this.dashboard.setUpdateState(plan, { kind: "applying", message: "Aplicando cambios de forma transaccional…" });
+    try {
+      const applied = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `DepAnalyzer: aplicando ${selected.length} actualizaciones`,
+          cancellable: true
+        },
+        (progress, token) => {
+          const subscription = token.onCancellationRequested(() => cancellation.cancel());
+          return this.cli.applyUpdatesFromPlan(projectPath, plan, ids, {
+            cancellationToken: cancellation.token,
+            onProgress: (event) => progress.report({ message: event.message })
+          }).finally(() => subscription.dispose());
+        }
+      );
+      this.output.appendLine(JSON.stringify(applied, null, 2));
+      this.dashboard.setUpdateState(plan, {
+        kind: "success",
+        message: `${applied.applied.length} actualizaciones aplicadas. Reanalizando en segundo plano…`
+      });
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        snapshot,
+        buildFile,
+        `DepAnalyzer: antes y después de ${path.basename(plan.buildFile)}`
+      );
+      void this.analyzeProject(projectPath, false);
+    } catch (error) {
+      const message = errorMessage(error);
+      this.output.appendLine(message);
+      this.dashboard.setUpdateState(plan, { kind: "error", message });
+    } finally {
+      cancellation.dispose();
+    }
+  }
+
   provideHover(
     document: vscode.TextDocument,
     position: vscode.Position
@@ -324,7 +466,7 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
     await this.manageUpdates(candidateOrArg);
   }
 
-  private async analyzeProject(projectPath: string): Promise<void> {
+  private async analyzeProject(projectPath: string, openDashboard = false): Promise<void> {
     this.lastProjectPath = projectPath;
     const previous = this.activeRuns.get(projectPath);
     previous?.cancellation.cancel();
@@ -367,10 +509,15 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
       );
       if (this.activeRuns.get(projectPath)?.generation !== generation) return;
       const findings = flattenFindings(report, projectPath);
-      this.results.set(projectPath, { report, findings, capabilities });
+      const ossTokenConfigured = await this.cli.hasOssToken();
+      this.results.set(projectPath, { report, findings, capabilities, ossTokenConfigured });
       this.rebuildDiagnostics();
       this.findingsProvider.refresh(findings, projectPath, report, capabilities);
       this.dependencyTreeProvider.refresh(report, projectPath);
+      this.summaryProvider.update(report.projectName, findings, report, "Análisis completado", ossTokenConfigured);
+      this.currentUpdatePlan = undefined;
+      this.dashboard.update({ projectPath, report, findings, capabilities, ossTokenConfigured });
+      if (openDashboard) this.dashboard.show("summary");
       void vscode.window.setStatusBarMessage(`DepAnalyzer: ${findings.length} hallazgos`, 5000);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -381,6 +528,7 @@ export class DepAnalyzerController implements vscode.HoverProvider, vscode.CodeA
       this.output.appendLine(message);
       this.findingsProvider.showError(message, projectPath);
       this.dependencyTreeProvider.remove(projectPath);
+      this.summaryProvider.showStatus("No se pudo completar el análisis");
       void vscode.window.showErrorMessage(`DepAnalyzer: ${message}`);
     } finally {
       if (this.activeRuns.get(projectPath)?.generation === generation) {
@@ -643,7 +791,7 @@ function diagnosticMessage(finding: Finding): string {
   if (finding.kind === "vulnerability") {
     const vuln = finding.vulnerability;
     const cvss = vuln?.cvssScore !== undefined ? ` CVSS ${vuln.cvssScore}` : "";
-    return `${finding.coordinate} vulnerable: ${vuln?.cveId ?? "CVE"} ${finding.severity ?? "UNKNOWN"}${cvss}`;
+    return `${finding.coordinate} vulnerable: ${vuln?.cveId ?? "CVE"} ${severityLabel(finding.severity)}${cvss}`;
   }
   return `${finding.coordinate} desactualizada: ${finding.currentVersion} -> ${finding.latestVersion}`;
 }
@@ -663,7 +811,7 @@ function formatFindingMarkdown(finding: Finding): string {
   const lines = [
     `**${finding.coordinate}** tiene ${vuln?.cveId ?? "una vulnerabilidad"}`,
     "",
-    `Severidad: **${finding.severity ?? "UNKNOWN"}**`,
+    `Severidad: **${severityLabel(finding.severity)}**`,
     vuln?.cvssScore !== undefined ? `CVSS: **${vuln.cvssScore}**` : undefined,
     finding.latestVersion ? `Actualizacion sugerida: \`${finding.latestVersion}\`` : undefined,
     vuln?.description ? `\n${vuln.description}` : undefined,

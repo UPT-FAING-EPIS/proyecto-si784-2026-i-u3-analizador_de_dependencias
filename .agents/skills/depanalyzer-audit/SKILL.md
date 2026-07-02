@@ -52,6 +52,10 @@ Always separate planning from modification.
 5. Report the backup path and resulting changes. Run relevant tests after modification when the
    project provides them.
 
+For CLI 2.3+ integrations, persist the current analysis report and plan, then use
+`--report-file` while planning and `--plan-file` while applying. This avoids repeating provider
+queries and validates that dependency inputs have not changed.
+
 Never infer approval from a request to inspect, audit, explain, review, plan, or simulate. Never use
 an interactive select-all action on the user's behalf.
 

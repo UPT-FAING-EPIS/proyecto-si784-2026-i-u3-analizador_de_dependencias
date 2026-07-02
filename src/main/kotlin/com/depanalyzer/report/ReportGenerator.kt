@@ -5,6 +5,8 @@ import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.KotlinModule
 import com.depanalyzer.parser.ProjectType
 import com.depanalyzer.update.UpdateSuggestion
+import com.depanalyzer.update.UpdateExecutionResult
+import com.depanalyzer.update.UpdatePlan
 
 class ReportGenerator {
     private val jsonMapper = JsonMapper.builder()
@@ -21,14 +23,15 @@ class ReportGenerator {
     }
 
     fun toJsonUpdatePlan(
-        projectType: ProjectType,
-        buildFile: String,
+        plan: UpdatePlan,
         suggestions: List<UpdateSuggestion>
     ): String {
         val payload = mapOf(
-            "schemaVersion" to "1.0",
-            "projectType" to projectType.name,
-            "buildFile" to buildFile,
+            "schemaVersion" to "1.1",
+            "projectType" to plan.projectType.name,
+            "buildFile" to plan.buildFile.absolutePath,
+            "inputFingerprint" to plan.inputFingerprint,
+            "generatedAt" to plan.generatedAt,
             "suggestions" to suggestions.map { suggestion ->
                 mapOf(
                     "id" to suggestion.suggestionId,
@@ -39,6 +42,32 @@ class ReportGenerator {
                     "reason" to suggestion.reason.name,
                     "targetType" to suggestion.targetType.name,
                     "viaDirectCoordinate" to suggestion.viaDirectCoordinate,
+                    "ecosystem" to suggestion.ecosystem.name
+                )
+            }
+        )
+        return jsonMapper.writeValueAsString(payload)
+    }
+
+    fun toJsonUpdateResult(result: UpdateExecutionResult): String {
+        val payload = mapOf(
+            "schemaVersion" to "1.0",
+            "status" to result.status,
+            "buildFile" to result.buildFile,
+            "backupFiles" to result.backupFiles,
+            "changedFiles" to result.changedFiles,
+            "lockfileStatus" to result.lockfileStatus,
+            "durationMs" to result.durationMs,
+            "warnings" to result.warnings,
+            "applied" to result.applied.map { suggestion ->
+                mapOf(
+                    "id" to suggestion.suggestionId,
+                    "groupId" to suggestion.groupId,
+                    "artifactId" to suggestion.artifactId,
+                    "currentVersion" to suggestion.currentVersion,
+                    "newVersion" to suggestion.newVersion,
+                    "reason" to suggestion.reason.name,
+                    "targetType" to suggestion.targetType.name,
                     "ecosystem" to suggestion.ecosystem.name
                 )
             }

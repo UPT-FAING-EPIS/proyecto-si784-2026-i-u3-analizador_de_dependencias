@@ -77,7 +77,7 @@ export function changeKindLabel(kind: VersionChangeKind): string {
     case "major": return "Cambio mayor";
     case "minor": return "Cambio menor";
     case "patch": return "Parche";
-    case "other": return "Actualizacion";
+    case "other": return "Actualización";
     case "unknown": return "Cambio por verificar";
   }
 }

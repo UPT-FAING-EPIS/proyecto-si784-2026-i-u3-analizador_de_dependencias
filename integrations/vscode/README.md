@@ -5,10 +5,11 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 ## Funciones
 
 - Vista **DepAnalyzer** en la barra de actividad.
-- Vista **Hallazgos** separada en CVE directas, CVE transitivas, desactualizadas y no resueltas.
-- Vista **Arbol de dependencias** con jerarquia real y filtros por problemas, vulnerables o directas.
-- Panel de detalle con CVE, CVSS, impacto, recomendacion, informacion tecnica y colores por severidad.
-- Centro de actualizaciones para revisar y seleccionar cambios individuales o multiples.
+- Resumen compacto en la barra lateral y dashboard central reutilizable.
+- Pestañas de resumen, hallazgos, dependencias y actualizaciones con búsqueda, filtros y paginación.
+- Hallazgos agrupados por dependencia y versión, con todos sus CVE/GHSA en un inspector desplazable.
+- Gráficos del estado actual y árbol sin repeticiones, con ruta principal y consulta de rutas alternativas.
+- Centro de actualizaciones transaccional para revisar y seleccionar cambios individuales o múltiples.
 - Confirmacion, copia previa, comparacion visual y reanalisis despues de actualizar.
 - Accesos rapidos para abrir el archivo afectado, ver la referencia CVE o preparar una actualizacion.
 - Ayuda para activar el analisis dinamico cuando una version no puede detectarse.
@@ -17,12 +18,18 @@ Analiza dependencias vulnerables y desactualizadas sin salir de Visual Studio Co
 - Información de CVE, severidad, CVSS y enlaces desde el editor.
 - Quick Fix para aplicar actualizaciones directas aprobadas.
 - Proveedores OSS Index y NVD mediante el CLI de DepAnalyzer.
+- Fallback a `npm audit` para proyectos npm cuando OSS Index no está configurado.
+- Identificadores CVE/GHSA, cobertura visible y guía segura para guardar el token de OSS Index.
 
-## Requisito: instalar el CLI
+## CLI incluido
 
-La extensión utiliza el ejecutable `depanalyzer`. Instálalo antes de iniciar el análisis.
-La version 0.2.1 usa el contrato del CLI 2.2.1. Un CLI anterior funciona en modo limitado y mantiene
-deshabilitados el arbol, las cadenas o las actualizaciones que no pueda garantizar.
+La extensión 0.4.0 incluye el CLI 2.3.0 compatible y lo selecciona automáticamente. No es necesario
+instalar ni configurar `depanalyzer` por separado. Se requiere Java 25 o posterior.
+
+`depanalyzer.executablePath` queda disponible únicamente para desarrollo o para reemplazar
+explícitamente el CLI incluido.
+
+### Instalación externa opcional
 
 ### Windows
 
@@ -66,18 +73,18 @@ Si el ejecutable está disponible en `PATH`, no necesitas configurar `depanalyze
 2. Selecciona el icono **DepAnalyzer** de la barra lateral.
 3. Ejecuta `DepAnalyzer: Analizar Workspace` desde la paleta de comandos.
 4. Elige **analisis preciso** para ejecutar Maven/Gradle y obtener las mismas versiones, transitivas y cadenas que la TUI.
-5. Revisa Hallazgos y el Arbol; abre cada CVE para ver la cadena completa y sus datos tecnicos.
-6. Usa las acciones del panel para saltar al archivo, revisar la CVE o preparar una actualizacion disponible.
+5. Revisa el dashboard; abre cada hallazgo en el inspector y expande solo las raíces necesarias.
+6. Usa las acciones del inspector para saltar al archivo o revisar la referencia CVE.
 
 ## Actualizar dependencias
 
-1. Selecciona el icono **Gestionar actualizaciones** en la cabecera de la vista DepAnalyzer o ejecuta
-   `DepAnalyzer: Gestionar Actualizaciones`.
-2. Espera a que el CLI genere un plan actualizado. Este paso no modifica archivos.
+1. Abre el dashboard y selecciona **Actualizaciones**.
+2. El CLI reutiliza el último reporte válido para generar el plan sin repetir consultas.
 3. Marca explicitamente las propuestas que deseas aplicar. Las correcciones de seguridad aparecen primero.
 4. Revisa la version actual, la version nueva, el tipo de cambio y el archivo afectado.
 5. Pulsa **Aplicar seleccionadas** y confirma la lista exacta de cambios.
-6. DepAnalyzer crea un backup, aplica los IDs aprobados, abre una comparacion y vuelve a analizar el workspace.
+6. DepAnalyzer crea backups únicos, sincroniza el lockfile npm sin ejecutar scripts, abre una comparación y
+   reanaliza el workspace en segundo plano. Si algo falla, revierte todos los archivos.
 
 Tambien puedes abrir una dependencia y usar **Preparar actualizacion** para llegar al centro con esa propuesta
 preseleccionada. Si aparece **Version no detectada**, activa el analisis dinamico antes de actualizar; la extension

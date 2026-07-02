@@ -8,9 +8,10 @@ import {
   versionChangeKind
 } from "./finding-presentation.js";
 import type { Finding } from "./models.js";
+import { relationshipLabel, severityLabel } from "./presentation-labels.js";
 
 export function buildFindingDetailsHtml(finding: Finding, nonce: string): string {
-  const severity = finding.severity ?? (finding.kind === "outdated" ? "OUTDATED" : "UNKNOWN");
+  const severity = finding.kind === "outdated" ? "Desactualizada" : severityLabel(finding.severity);
   const tone = findingTone(finding);
   const cve = finding.vulnerability?.cveId ?? "Sin CVE";
   const cvss = finding.vulnerability?.cvssScore !== undefined ? String(finding.vulnerability.cvssScore) : "N/D";
@@ -38,11 +39,7 @@ export function buildFindingDetailsHtml(finding: Finding, nonce: string): string
     ? `${finding.sourceLocation.file}:${finding.sourceLocation.line}`
     : "Sin ubicacion exacta";
   const ecosystem = finding.ecosystem ?? "MAVEN";
-  const relationship = finding.relationship === "transitive"
-    ? "Transitiva"
-    : finding.relationship === "direct"
-      ? "Directa"
-      : "No determinada";
+  const relationship = relationshipLabel(finding.relationship);
   const directRoot = finding.directRoot ?? (finding.relationship === "direct" ? finding.coordinate : "No disponible");
   const classification = finding.chainClassification ?? "No reportada";
 
