@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Corrige el guardado de `analysisMode` en la configuración de cada carpeta del workspace.
+
 ## 0.4.0
 
 - Fallback automático a `npm audit` cuando OSS Index no está disponible.
