@@ -2,7 +2,7 @@ name: Quality Reports and Pages
 
 on:
   push:
-    branches: [union]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -288,6 +288,9 @@ jobs:
           copy_report artifacts/static-analysis-reports/semgrep build/pages-site/reports/semgrep
           copy_report artifacts/static-analysis-reports/snyk build/pages-site/reports/snyk
           copy_report artifacts/sonar-report build/pages-site/reports/sonar
+
+      - name: Render quality report pages
+        run: python scripts/build-pages.py --render-quality-reports
 
       - uses: actions/configure-pages@v5
 

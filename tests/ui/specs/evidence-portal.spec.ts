@@ -35,6 +35,14 @@ test("publica el índice de reportes de calidad", async ({ page }) => {
   }
 });
 
+test("publica páginas legibles para reportes de seguridad", async ({ page }) => {
+  for (const report of ["sonar", "semgrep", "snyk"]) {
+    await page.goto(`/reports/${report}/`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(new RegExp(report, "i"));
+    await expect(page.getByText("Este reporte se genera durante el workflow")).toHaveCount(0);
+  }
+});
+
 test("mantiene legible el portal en viewport móvil", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
