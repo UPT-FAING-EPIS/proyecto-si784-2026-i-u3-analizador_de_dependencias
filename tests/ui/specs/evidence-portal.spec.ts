@@ -15,6 +15,18 @@ test("permite navegar al manual de usuario", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Manual de Usuario");
 });
 
+test("renderiza la carátula sin mostrar sintaxis Markdown", async ({ page }) => {
+  await page.goto("/FD01-Informe-Factibilidad.html");
+  const cover = page.locator(".document-cover");
+
+  await expect(page).toHaveTitle("Informe de Factibilidad");
+  await expect(cover).toBeVisible();
+  await expect(cover.getByRole("img", { name: "Logo UPT" })).toBeVisible();
+  await expect(cover).toContainText("UNIVERSIDAD PRIVADA DE TACNA");
+  await expect(cover).not.toContainText("**");
+  await expect(cover).not.toContainText("![Logo UPT]");
+});
+
 test("publica el índice de reportes de calidad", async ({ page }) => {
   await page.goto("/reports/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Reportes");

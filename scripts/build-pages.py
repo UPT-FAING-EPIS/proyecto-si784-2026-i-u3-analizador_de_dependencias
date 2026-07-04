@@ -14,7 +14,11 @@ SITE_DIR = ROOT / "build" / "pages-site"
 
 
 def title_for(path: Path) -> str:
-    for line in path.read_text(encoding="utf-8").splitlines():
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for line in lines:
+        if line.startswith("**Informe") and line.endswith("**"):
+            return line.removeprefix("**").removesuffix("**").strip()
+    for line in lines:
         if line.startswith("# "):
             return line[2:].strip()
     return path.stem.replace("-", " ")
@@ -22,9 +26,13 @@ def title_for(path: Path) -> str:
 
 def render_markdown(source: Path, destination: Path) -> None:
     raw = source.read_text(encoding="utf-8")
+    raw = raw.replace(
+        "<center>",
+        '<section class="document-cover" markdown="1">',
+    ).replace("</center>", "</section>")
     body = markdown.markdown(
         raw,
-        extensions=["extra", "toc", "tables", "fenced_code", "sane_lists"],
+        extensions=["extra", "md_in_html", "toc", "tables", "fenced_code", "sane_lists"],
         output_format="html5",
     )
     title = html.escape(title_for(source))
@@ -140,10 +148,14 @@ th { background: #eef1f5; }
 pre { overflow: auto; background: #f0f2f5; padding: 12px; border-radius: 6px; }
 code { background: #f0f2f5; padding: 1px 4px; border-radius: 4px; }
 img { max-width: 100%; }
+.document-cover { min-height: 82vh; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+.document-cover img { width: min(180px, 45vw); margin: 0 auto 20px; }
+.document-cover p { margin: 6px 0; }
 .report-grid { display: grid; gap: 12px; padding-left: 20px; }
 .report-grid li { padding: 8px; }
 @media (max-width: 600px) {
   .page { padding: 20px 14px 40px; overflow-wrap: anywhere; }
+  .document-cover { min-height: auto; padding: 24px 0 40px; }
   table { display: block; overflow-x: auto; }
 }
 """.strip(),
