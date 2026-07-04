@@ -221,7 +221,9 @@ jobs:
           cache: gradle
 
       - name: Run SonarCloud quality gate
+        id: sonar_scan
         if: env.SONAR_TOKEN != ''
+        continue-on-error: true
         run: |
           chmod +x gradlew
           ./gradlew test jacocoTestReport sonar
@@ -230,10 +232,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p build/reports/sonar
-          if [ -n "$SONAR_TOKEN" ]; then
+          if [ -z "$SONAR_TOKEN" ]; then
+            printf '{"status":"not-configured","requiredSecret":"SONAR_TOKEN"}\n' > build/reports/sonar/status.json
+          elif [ "${{ steps.sonar_scan.outcome }}" = "success" ]; then
             printf '{"status":"submitted","url":"https://sonarcloud.io/project/overview?id=UPT-FAING-EPIS_proyecto-si784-2026-i-u2-analizador-de-dependencias-2"}\n' > build/reports/sonar/status.json
           else
-            printf '{"status":"not-configured","requiredSecret":"SONAR_TOKEN"}\n' > build/reports/sonar/status.json
+            printf '{"status":"failed","message":"SonarCloud analysis failed. Review the workflow logs and SonarCloud project/organization settings."}\n' > build/reports/sonar/status.json
           fi
 
       - uses: actions/upload-artifact@v4
@@ -288,6 +292,9 @@ jobs:
           copy_report artifacts/static-analysis-reports/semgrep build/pages-site/reports/semgrep
           copy_report artifacts/static-analysis-reports/snyk build/pages-site/reports/snyk
           copy_report artifacts/sonar-report build/pages-site/reports/sonar
+
+      - name: Render quality report pages
+        run: python scripts/build-pages.py --render-quality-reports
 
       - uses: actions/configure-pages@v5
 
