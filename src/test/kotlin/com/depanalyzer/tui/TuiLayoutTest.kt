@@ -1,0 +1,191 @@
+package com.depanalyzer.tui
+
+import com.depanalyzer.report.VulnerabilitySeverity
+import org.junit.jupiter.api.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class TuiLayoutTest {
+    @Test
+    fun `composes two panel layout with dependency list and detail`() {
+        val layout = TuiLayout()
+        val state = TuiState(
+            entries = listOf(
+                TuiDependencyEntry(
+                    coordinate = "org.sample:demo",
+                    currentVersion = "1.0.0",
+                    latestVersion = "1.1.0",
+                    vulnerabilityCount = 2,
+                    source = "outdated"
+                )
+            ),
+            summary = TuiSummary(
+                projectName = "sample",
+                outdatedCount = 1,
+                vulnerableCount = 1,
+                totalEntries = 1
+            )
+        )
+
+        val frame = layout.composeFrame(state)
+
+        assertTrue(frame.any { it.contains("DEPENDENCIAS") })
+        assertTrue(frame.any { it.contains("· 1 CVE · 1 desact.") })
+        assertTrue(frame.any { it.contains("Detalle") })
+        assertTrue(frame.any { it.contains("Filtro (f):") })
+        assertTrue(frame.any { it.contains("org.sample:demo") })
+        assertTrue(frame.any { it.contains("DEPENDENCIA SELECCIONADA") })
+        assertTrue(frame.none { it.contains("Escaneo") })
+    }
+
+    @Test
+    fun `calculates responsive dimensions from terminal size`() {
+        val layout = TuiLayout()
+
+        val dimensions = layout.calculateDimensions(width = 100, height = 30)
+
+        assertTrue(dimensions.leftInnerWidth > 0)
+        assertTrue(dimensions.rightInnerWidth > 0)
+        assertTrue(dimensions.contentRows > 0)
+    }
+
+    @Test
+    fun `shows disabled tree tab message when transitive tree is unavailable`() {
+        val layout = TuiLayout()
+        val state = TuiState(
+            entries = listOf(
+                TuiDependencyEntry(
+                    coordinate = "org.sample:demo",
+                    currentVersion = "1.0.0"
+                )
+            ),
+            summary = TuiSummary(
+                projectName = "sample",
+                outdatedCount = 0,
+                vulnerableCount = 0,
+                totalEntries = 1
+            ),
+            isTreeTabEnabled = false,
+            treeUnavailableMessage = "No se pudo cargar el arbol transitivo"
+        )
+
+        val frame = layout.composeFrame(state)
+
+        assertTrue(frame.any { it.contains("desactivado") })
+        assertTrue(frame.any { it.contains("No se pudo cargar el arbol transitivo") })
+    }
+
+    @Test
+    fun `keeps main table layout while loading with empty entries`() {
+        val layout = TuiLayout()
+        val state = TuiState(
+            entries = emptyList(),
+            summary = TuiSummary(
+                projectName = "sample",
+                outdatedCount = 0,
+                vulnerableCount = 0,
+                totalEntries = 0
+            ),
+            isLoading = true,
+            loadingMessage = "Escaneo en progreso..."
+        )
+
+        val frame = layout.composeFrame(state)
+
+        assertTrue(frame.any { it.contains("DEPENDENCIAS") })
+        assertTrue(frame.any { it.contains("No hay dependencias") })
+        assertTrue(frame.none { it.contains("Presiona q para salir") })
+    }
+
+    @Test
+    fun `shows transitive status when only transitive dependencies are outdated`() {
+        val layout = TuiLayout(TuiTheme(enabled = false))
+        val state = TuiState(
+            entries = listOf(
+                TuiDependencyEntry(
+                    coordinate = "npm:eslint-plugin-react-hooks",
+                    currentVersion = "8.59.2",
+                    latestVersion = null,
+                    outdatedCount = 2,
+                    transitiveTreeLines = listOf(
+                        "+ npm:eslint-plugin-react-hooks:8.59.2",
+                        "  + npm:transitive-a:1.0.0 desactualizada -> 1.1.0"
+                    )
+                )
+            ),
+            summary = TuiSummary(
+                projectName = "sample",
+                outdatedCount = 0,
+                vulnerableCount = 0,
+                totalEntries = 1
+            )
+        )
+
+        val frame = layout.composeFrame(state)
+
+        assertTrue(frame.any { it.contains("Trans.") })
+        assertTrue(frame.none { it.contains("Desact.") })
+    }
+
+    @Test
+    fun `uses ascii safe glyphs when unicode is disabled`() {
+        val layout = TuiLayout(TuiTheme(enabled = false), useUnicodeGlyphs = false)
+        val state = TuiState(
+            entries = listOf(
+                TuiDependencyEntry(
+                    coordinate = "org.sample:demo",
+                    currentVersion = "1.0.0",
+                    chainPreview = listOf("org.sample:demo:1.0.0")
+                )
+            ),
+            summary = TuiSummary(
+                projectName = "analisis",
+                outdatedCount = 0,
+                vulnerableCount = 0,
+                totalEntries = 1
+            ),
+            statusLine = "Arbol y navegacion disponibles"
+        )
+
+        val frame = layout.composeFrame(state, width = 80, height = 20)
+
+        assertTrue(frame.any { it.startsWith("+") })
+        assertTrue(frame.any { it.contains("|") })
+        assertFalse(frame.any { it.contains("┌") || it.contains("│") || it.contains("▶") || it.contains("•") })
+        assertTrue(frame.all { line -> line.all { char -> char.code in 32..126 } })
+    }
+
+    @Test
+    fun `scrolls detail panel independently from dependency list`() {
+        val layout = TuiLayout(TuiTheme(enabled = false), useUnicodeGlyphs = false)
+        val longDescription = (1..20).joinToString(" ") { "detalle-$it" }
+        val state = TuiState(
+            entries = listOf(
+                TuiDependencyEntry(
+                    coordinate = "org.sample:demo",
+                    currentVersion = "1.0.0",
+                    vulnerabilities = listOf(
+                        TuiVulnerability(
+                            cveId = "CVE-2026-0001",
+                            severity = VulnerabilitySeverity.HIGH,
+                            cvssScore = 8.1,
+                            description = longDescription
+                        )
+                    )
+                )
+            ),
+            summary = TuiSummary(
+                projectName = "sample",
+                outdatedCount = 0,
+                vulnerableCount = 1,
+                totalEntries = 1
+            ),
+            detailScrollOffset = 6
+        )
+
+        val frame = layout.composeFrame(state, width = 80, height = 16)
+
+        assertFalse(frame.any { it.contains("1.0.0 -> 1.0.0") })
+        assertTrue(frame.any { it.contains("detalle-") })
+    }
+}

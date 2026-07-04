@@ -1,0 +1,49 @@
+name: Publish Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "wiki/**"
+      - ".github/workflows/wiki.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish versioned Wiki pages
+        if: env.WIKI_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.WIKI_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          mkdir wiki-publish
+          cp wiki/*.md wiki-publish/
+          cd wiki-publish
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "docs: synchronize project wiki"
+          git branch -M master
+          git remote add origin "$remote"
+          git push --force origin master
+
+      - name: Record pending Wiki configuration
+        if: env.WIKI_TOKEN == ''
+        run: |
+          {
+            echo "## Wiki"
+            echo ""
+            echo "The versioned Wiki sources are valid, but publication requires the WIKI_TOKEN secret."
+            echo "Create the first Wiki page once in GitHub, add a token with repository write access, and rerun this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,259 @@
+name: Native Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  PROJECT_VERSION: ${{ github.ref_name }}
+
+jobs:
+  test:
+    name: Run tests before release
+    runs-on: ubuntu-latest
+    env:
+      GRADLE_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=512m"
+      OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run tests with Gradle
+        run: ./gradlew test
+
+  build-binaries:
+    name: Build executable (${{ matrix.id }})
+    runs-on: ${{ matrix.os }}
+    needs:
+      - test
+    env:
+      OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: linux-amd64
+            os: ubuntu-latest
+            artifact_name: depanalyzer-linux-amd64.tar.gz
+            executable_name: depanalyzer
+          - id: macos-arm64
+            os: macos-latest
+            artifact_name: depanalyzer-macos-arm64.zip
+            executable_name: depanalyzer
+          - id: windows-amd64
+            os: windows-latest
+            artifact_name: depanalyzer-windows-amd64.zip
+            executable_name: depanalyzer.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: "25"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: gradle
+
+      - name: Build native image (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x gradlew
+          ./gradlew nativeCompile
+
+      - name: Build native image (Windows)
+        if: runner.os == 'Windows'
+        run: .\gradlew.bat nativeCompile
+
+      - name: Package executable (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist
+          mkdir -p package
+          cp build/native/nativeCompile/depanalyzer package/depanalyzer
+          chmod +x package/depanalyzer
+          tar -czf "dist/${{ matrix.artifact_name }}" -C package .
+
+      - name: Package executable (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          mkdir -p package
+          cp build/native/nativeCompile/depanalyzer package/depanalyzer
+          chmod +x package/depanalyzer
+          (cd package && zip -r "../dist/${{ matrix.artifact_name }}" .)
+
+      - name: Package executable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          New-Item -ItemType Directory -Path "package/depanalyzer-windows-amd64/bin" -Force | Out-Null
+          Copy-Item "build/native/nativeCompile/depanalyzer.exe" "package/depanalyzer-windows-amd64/bin/depanalyzer.exe"
+          Compress-Archive -Path "package/depanalyzer-windows-amd64" -DestinationPath "dist/${{ matrix.artifact_name }}" -Force
+
+      - name: Smoke test contract and dynamic report (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          VERSION="${PROJECT_VERSION#v}"
+          ./build/native/nativeCompile/depanalyzer --version | grep -F "$VERSION"
+          ./build/native/nativeCompile/depanalyzer capabilities --output json > capabilities.json
+          python -c "import json; d=json.load(open('capabilities.json')); assert d['cliVersion']=='$VERSION'; assert '1.3' in d['reportSchemas']; assert d['features']['report.dependencyTree']; assert d['features']['update.planFile']"
+          ./build/native/nativeCompile/depanalyzer --no-telemetry analyze src/test/resources/poms/simple \
+            --dynamic --show-chains --tree-expand all --oss --timeout 300 \
+            --output json --output-file smoke-report.json --quiet --progress-json \
+            2> smoke-progress.ndjson
+          python -c "import json; d=json.load(open('smoke-report.json')); assert d['schemaVersion']=='1.3'; assert d['analysis']['requestedMode']=='DYNAMIC'; assert d['analysis']['inputFingerprint']; assert 'dependencyTree' in d; events=[json.loads(x) for x in open('smoke-progress.ndjson') if x.startswith('{')]; assert events and events[-1]['type'] in ('completed','success')"
+
+      - name: Smoke test contract and dynamic report (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:PROJECT_VERSION.TrimStart("v")
+          $actual = & .\build\native\nativeCompile\depanalyzer.exe --version
+          if ($actual -notmatch [regex]::Escape($version)) { throw "Unexpected version: $actual" }
+          & .\build\native\nativeCompile\depanalyzer.exe capabilities --output json | Set-Content capabilities.json
+          $capabilities = Get-Content capabilities.json -Raw | ConvertFrom-Json
+          if ($capabilities.cliVersion -ne $version -or $capabilities.reportSchemas -notcontains "1.3" -or -not $capabilities.features.'update.planFile') {
+            throw "Invalid capabilities contract"
+          }
+          & .\build\native\nativeCompile\depanalyzer.exe --no-telemetry analyze src/test/resources/poms/simple `
+            --dynamic --show-chains --tree-expand all --oss --timeout 300 `
+            --output json --output-file smoke-report.json --quiet --progress-json `
+            2> smoke-progress.ndjson
+          if ($LASTEXITCODE -ne 0) { throw "Dynamic smoke analysis failed" }
+          $report = Get-Content smoke-report.json -Raw | ConvertFrom-Json
+          if ($report.schemaVersion -ne "1.3" -or $report.analysis.requestedMode -ne "DYNAMIC" -or -not $report.analysis.inputFingerprint) {
+            throw "Invalid dynamic report"
+          }
+
+      - name: Upload packaged binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.id }}
+          path: dist/${{ matrix.artifact_name }}
+          if-no-files-found: error
+
+  publish-container:
+    name: Publish application container
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract container metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      - name: Build and publish container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  publish-packagers:
+    name: Publish package managers via JReleaser
+    runs-on: ubuntu-latest
+    needs:
+      - build-binaries
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: release-assets
+
+      - name: Prepare dist
+        run: |
+          mkdir -p dist
+          find release-assets -type f -name "*" -exec cp {} dist/ \;
+
+      - name: Verify packaged artifacts layout
+        run: |
+          python -c "import zipfile, tarfile; norm=lambda s:s.lstrip('./'); t=tarfile.open('dist/depanalyzer-linux-amd64.tar.gz','r:gz'); n=[norm(x) for x in t.getnames()]; t.close(); assert 'depanalyzer' in n, f'depanalyzer missing in linux tar: {n}'; z=zipfile.ZipFile('dist/depanalyzer-macos-arm64.zip','r'); n=[norm(x) for x in z.namelist()]; z.close(); assert 'depanalyzer' in n, f'depanalyzer missing in mac zip: {n}'; z=zipfile.ZipFile('dist/depanalyzer-windows-amd64.zip','r'); n=[norm(x) for x in z.namelist()]; z.close(); assert any(x.endswith('bin/depanalyzer.exe') for x in n), f'bin/depanalyzer.exe missing in windows zip: {n}'"
+
+      - name: Setup Java for JReleaser
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Resolve project version from tag
+        run: |
+          echo "PROJECT_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Run JReleaser
+        uses: jreleaser/release-action@v2
+        with:
+          arguments: full-release
+        env:
+          JRELEASER_PROJECT_VERSION: ${{ env.PROJECT_VERSION }}
+          JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JRELEASER_HOMEBREW_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          JRELEASER_SCOOP_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          SNAP_REPO_TOKEN: ${{ secrets.SNAP_REPO_TOKEN }}
+          JRELEASER_SNAP_EXPORT_LOGIN: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+
+      - name: Reject hidden packager failures
+        run: |
+          if grep -E '\[(brew|scoop|snap)\].*(Unexpected error|Unauthorized|Bad credentials)' out/jreleaser/trace.log; then
+            echo "A package manager failed even though JReleaser returned success." >&2
+            exit 1
+          fi
+
+      - name: Upload JReleaser logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jreleaser-logs
+          path: |
+            out/jreleaser/trace.log
+            out/jreleaser/output.properties
