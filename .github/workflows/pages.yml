@@ -235,7 +235,7 @@ jobs:
           if [ -z "$SONAR_TOKEN" ]; then
             printf '{"status":"not-configured","requiredSecret":"SONAR_TOKEN"}\n' > build/reports/sonar/status.json
           elif [ "${{ steps.sonar_scan.outcome }}" = "success" ]; then
-            printf '{"status":"submitted","url":"https://sonarcloud.io/project/overview?id=UPT-FAING-EPIS_proyecto-si784-2026-i-u2-analizador-de-dependencias-2"}\n' > build/reports/sonar/status.json
+            printf '{"status":"submitted","url":"https://sonarcloud.io/project/overview?id=UPT-FAING-EPIS_proyecto-si784-2026-i-u3-analizador_de_dependencias"}\n' > build/reports/sonar/status.json
           else
             printf '{"status":"failed","message":"SonarCloud analysis failed. Review the workflow logs and SonarCloud project/organization settings."}\n' > build/reports/sonar/status.json
           fi
@@ -300,8 +300,11 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: build/pages-site
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}

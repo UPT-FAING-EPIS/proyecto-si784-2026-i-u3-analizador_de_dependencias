@@ -2,7 +2,7 @@
 
 set -eu
 
-REPOSITORY="${DEPANALYZER_REPOSITORY:-UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2}"
+REPOSITORY="${DEPANALYZER_REPOSITORY:-UPT-FAING-EPIS/proyecto-si784-2026-i-u3-analizador_de_dependencias}"
 VERSION="latest"
 INSTALL_DIR="${DEPANALYZER_INSTALL_DIR:-$HOME/.local/bin}"
 

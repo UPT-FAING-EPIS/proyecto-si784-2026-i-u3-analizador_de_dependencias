@@ -226,7 +226,7 @@ pitest {
 
 sonar {
     properties {
-        property("sonar.projectKey", "UPT-FAING-EPIS_proyecto-si784-2026-i-u2-analizador-de-dependencias-2")
+        property("sonar.projectKey", "UPT-FAING-EPIS_proyecto-si784-2026-i-u3-analizador_de_dependencias")
         property("sonar.organization", "upt-faing-epis")
         property("sonar.host.url", "https://sonarcloud.io")
         property("sonar.sources", "src/main/kotlin")

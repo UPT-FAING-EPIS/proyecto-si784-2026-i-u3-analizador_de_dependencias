@@ -65,13 +65,13 @@ sudo snap install depanalyzer
 Linux/macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u3-analizador_de_dependencias/main/scripts/install.sh | sh
 ```
 
 Version especifica:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u2-analizador-de-dependencias-2/main/scripts/install.sh | sh -s -- --version v2.2.1
+curl -fsSL https://raw.githubusercontent.com/UPT-FAING-EPIS/proyecto-si784-2026-i-u3-analizador_de_dependencias/main/scripts/install.sh | sh -s -- --version v2.2.1
 ```
 
 Windows:
