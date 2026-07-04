@@ -161,6 +161,12 @@ def write_sonar_report(destination: Path) -> None:
 <p class="status-warn">SonarCloud no se ejecuto porque falta el secreto <code>{secret}</code>.</p>
 <p>Configura el token en GitHub Actions y vuelve a ejecutar el workflow de Pages para publicar el resultado real.</p>
 """
+    elif status == "failed":
+        message = html.escape(str(data.get("message", "La ejecucion de SonarCloud fallo.")))
+        body = f"""
+<p class="status-warn">SonarCloud fue configurado, pero el analisis fallo.</p>
+<p>{message}</p>
+"""
     else:
         body = f"""
 <p>Estado reportado por SonarCloud: <code>{html.escape(status)}</code>.</p>
