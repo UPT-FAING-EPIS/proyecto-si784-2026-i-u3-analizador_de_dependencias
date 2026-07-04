@@ -2,6 +2,24 @@ package com.depanalyzer.tui
 
 import com.github.ajalt.mordant.rendering.AnsiLevel
 import java.nio.charset.Charset
+import java.util.concurrent.TimeUnit
+
+private const val UTF8_CODE_PAGE = 65001
+
+private fun detectWindowsCodePage(): Int? {
+    return runCatching {
+        val process = ProcessBuilder("cmd", "/c", "chcp")
+            .redirectErrorStream(true)
+            .start()
+        if (!process.waitFor(1, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            return@runCatching null
+        }
+
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        Regex("""\d+""").findAll(output).lastOrNull()?.value?.toIntOrNull()
+    }.getOrNull()
+}
 
 data class TerminalCapabilities(
     val ansiLevel: AnsiLevel,
@@ -15,7 +33,8 @@ class TerminalCapabilitiesDetector(
     private val envProvider: (String) -> String? = { System.getenv(it) },
     private val hasConsole: () -> Boolean = { System.console() != null },
     private val consoleCharsetProvider: () -> Charset? = { System.console()?.charset() },
-    private val osNameProvider: () -> String = { System.getProperty("os.name").orEmpty() }
+    private val osNameProvider: () -> String = { System.getProperty("os.name").orEmpty() },
+    private val windowsCodePageProvider: () -> Int? = ::detectWindowsCodePage
 ) {
     fun detect(noColor: Boolean = false): TerminalCapabilities {
         val isTty = hasConsole()
@@ -47,6 +66,11 @@ class TerminalCapabilitiesDetector(
         val osName = osNameProvider()
         if (!osName.contains("windows", ignoreCase = true)) {
             return true
+        }
+
+        val codePage = windowsCodePageProvider()
+        if (codePage != null) {
+            return codePage == UTF8_CODE_PAGE
         }
 
         val charset = consoleCharsetProvider()?.name().orEmpty()

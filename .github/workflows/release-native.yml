@@ -147,6 +147,10 @@ jobs:
           if ($report.schemaVersion -ne "1.3" -or $report.analysis.requestedMode -ne "DYNAMIC" -or -not $report.analysis.inputFingerprint) {
             throw "Invalid dynamic report"
           }
+          chcp 850
+          & .\build\native\nativeCompile\depanalyzer.exe --no-telemetry analyze src/test/resources/poms/simple `
+            --ascii --quiet
+          if ($LASTEXITCODE -ne 0) { throw "Code page 850 ASCII smoke analysis failed" }
 
       - name: Upload packaged binary
         uses: actions/upload-artifact@v4

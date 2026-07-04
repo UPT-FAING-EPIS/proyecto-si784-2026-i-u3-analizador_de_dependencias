@@ -2,6 +2,7 @@ package com.depanalyzer.tui
 
 import com.depanalyzer.report.VulnerabilitySeverity
 import org.junit.jupiter.api.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -187,5 +188,48 @@ class TuiLayoutTest {
 
         assertFalse(frame.any { it.contains("1.0.0 -> 1.0.0") })
         assertTrue(frame.any { it.contains("detalle-") })
+    }
+
+    @Test
+    fun `load error frame fills the viewport to clear stale content`() {
+        val layout = TuiLayout(TuiTheme(enabled = false), useUnicodeGlyphs = false)
+        val state = TuiState(
+            entries = emptyList(),
+            summary = TuiSummary(
+                projectName = "escaneo-dinamico",
+                outdatedCount = 0,
+                vulnerableCount = 0,
+                totalEntries = 0
+            ),
+            loadError = "IllegalStateException: proyecto invalido"
+        )
+
+        val frame = layout.composeFrame(state, width = 72, height = 12)
+
+        assertEquals(12, frame.size)
+        assertTrue(frame.all { it.length == 72 })
+        assertTrue(frame.any { it.contains("Error durante el escaneo: IllegalStateException") })
+        assertTrue(frame.any { it.contains("Presiona q para salir") })
+    }
+
+    @Test
+    fun `load error frame wraps long messages inside the viewport`() {
+        val layout = TuiLayout(TuiTheme(enabled = false), useUnicodeGlyphs = false)
+        val state = TuiState(
+            entries = emptyList(),
+            summary = TuiSummary(
+                projectName = "escaneo-dinamico",
+                outdatedCount = 0,
+                vulnerableCount = 0,
+                totalEntries = 0
+            ),
+            loadError = "IllegalStateException: " + (1..20).joinToString(" ") { "detalle-$it" }
+        )
+
+        val frame = layout.composeFrame(state, width = 50, height = 10)
+
+        assertEquals(10, frame.size)
+        assertTrue(frame.all { it.length == 50 })
+        assertTrue(frame.count { it.contains("detalle-") } > 1)
     }
 }

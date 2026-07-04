@@ -3,6 +3,7 @@ package com.depanalyzer.tui
 import com.depanalyzer.report.*
 import com.depanalyzer.update.UpdateTargetType
 import org.junit.jupiter.api.Test
+import java.util.concurrent.ExecutionException
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -136,5 +137,34 @@ class AnalyzeTuiAppTest {
 
         assertEquals(listOf("a:one", "b:two", "c:three"), merged.map { it.coordinate })
         assertEquals("2.0.0", merged[1].currentVersion)
+    }
+
+    @Test
+    fun `describe load error unwraps execution exception to meaningful cause`() {
+        val app = AnalyzeTuiApp()
+        val error = ExecutionException(
+            IllegalStateException("No se pudo resolver el proyecto Maven")
+        )
+
+        assertEquals(
+            "IllegalStateException: No se pudo resolver el proyecto Maven",
+            app.describeLoadError(error)
+        )
+    }
+
+    @Test
+    fun `describe load error prefers deepest meaningful cause`() {
+        val app = AnalyzeTuiApp()
+        val error = ExecutionException(
+            RuntimeException(
+                "wrapper",
+                IllegalStateException("build file no encontrado")
+            )
+        )
+
+        assertEquals(
+            "IllegalStateException: build file no encontrado",
+            app.describeLoadError(error)
+        )
     }
 }

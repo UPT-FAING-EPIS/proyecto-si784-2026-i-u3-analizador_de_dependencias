@@ -89,6 +89,10 @@ class TuiLayout(
         terminal.cursor.move {
             setPosition(1, 1)
         }
+        terminal.rawPrint("\u001b[2J")
+        terminal.cursor.move {
+            setPosition(1, 1)
+        }
         terminal.rawPrint(frame.joinToString("\n", postfix = "\n"))
     }
 
@@ -114,12 +118,15 @@ class TuiLayout(
     internal fun composeFrame(state: TuiState, width: Int = 120, height: Int = 32): List<String> {
         val dim = calculateDimensions(width, height)
         if (state.loadError != null) {
-            val lines = listOf(
-                theme.chrome(fit(" dep-analyzer - ${state.summary.projectName} ", dim.width)),
-                theme.scanDanger(fit("Error durante el escaneo: ${state.loadError}", dim.width)),
-                theme.muted(fit("Presiona q para salir", dim.width))
-            )
-            return if (asciiOnly) lines.map(::toAscii) else lines
+            val lines = mutableListOf<String>()
+            lines += theme.chrome(fit(" dep-analyzer - ${state.summary.projectName} ", dim.width))
+            lines += fit("", dim.width)
+            wrapToWidth("Error durante el escaneo: ${state.loadError}", dim.width).forEach { line ->
+                lines += theme.scanDanger(fit(line, dim.width))
+            }
+            lines += fit("", dim.width)
+            lines += theme.muted(fit("Presiona q para salir", dim.width))
+            return finalizeFrame(lines, dim)
         }
 
         val safeState = if (!state.isTreeTabEnabled && state.activeTab == TuiTab.TREE) {
@@ -184,7 +191,18 @@ class TuiLayout(
                 glyphs.bottomRight
         lines += bottom
         lines += buildFooterLine(normalizedState, dim.width, bodyRows)
-        return if (asciiOnly) lines.map(::toAscii) else lines
+        return finalizeFrame(lines, dim)
+    }
+
+    private fun finalizeFrame(lines: List<String>, dim: TuiDimensions): List<String> {
+        val padded = lines
+            .take(dim.height)
+            .toMutableList()
+        while (padded.size < dim.height) {
+            padded += fit("", dim.width)
+        }
+
+        return if (asciiOnly) padded.map(::toAscii) else padded
     }
 
     private fun buildRightTabsCell(state: TuiState, width: Int): String {

@@ -1,6 +1,7 @@
 package com.depanalyzer.cli
 
 import com.depanalyzer.report.DependencyReport
+import com.depanalyzer.tui.TerminalCapabilities
 import com.depanalyzer.tui.TerminalCapabilitiesDetector
 import com.github.ajalt.clikt.core.parse
 import org.junit.jupiter.api.Test
@@ -99,5 +100,27 @@ class TuiCommandTest {
         command.parse(listOf("--command-output"))
 
         assertTrue(capturedRequest?.showCommandOutput == true)
+    }
+
+    @Test
+    fun `ascii flag forces ascii glyphs in tui mode`() {
+        val detector = TerminalCapabilitiesDetector(
+            envProvider = { null },
+            hasConsole = { true }
+        )
+
+        var capturedCapabilities: TerminalCapabilities? = null
+        val command = Tui(
+            analyzeExecutor = { DependencyReport(projectName = "tui-ascii") },
+            terminalCapabilitiesDetector = detector,
+            tuiRunner = { config, capabilities ->
+                capturedCapabilities = capabilities
+                config.scanProvider { }
+            }
+        )
+
+        command.parse(listOf("--ascii"))
+
+        assertEquals(false, capturedCapabilities?.supportsUnicodeGlyphs)
     }
 }

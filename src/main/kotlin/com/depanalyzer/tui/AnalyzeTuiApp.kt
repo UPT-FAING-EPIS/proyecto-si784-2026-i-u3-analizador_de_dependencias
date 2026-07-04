@@ -13,6 +13,7 @@ import com.github.ajalt.mordant.input.enterRawMode
 import com.github.ajalt.mordant.input.isCtrlC
 import com.github.ajalt.mordant.terminal.Terminal
 import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -160,7 +161,7 @@ class AnalyzeTuiApp(
                                 } catch (e: Exception) {
                                     state = state.copy(
                                         isLoading = false,
-                                        loadError = "${e.javaClass.simpleName}: ${e.message ?: "error desconocido"}",
+                                        loadError = describeLoadError(e),
                                         statusLine = "Escaneo dinámico falló",
                                         confirmationPrompt = null
                                     )
@@ -690,6 +691,23 @@ class AnalyzeTuiApp(
             }
         }
         return isRecoverableConsoleReadError(error.cause)
+    }
+
+    internal fun describeLoadError(error: Throwable): String {
+        val chain = mutableListOf<Throwable>()
+        var current: Throwable? = error
+        while (current != null && current !in chain) {
+            chain += current
+            current = current.cause
+        }
+
+        val meaningful = chain
+            .asReversed()
+            .firstOrNull { it !is ExecutionException && !it.message.isNullOrBlank() }
+            ?: chain.firstOrNull { it !is ExecutionException }
+            ?: error
+        val message = meaningful.message?.takeUnless { it.isBlank() } ?: "error desconocido"
+        return "${meaningful.javaClass.simpleName}: $message"
     }
 
     private fun collectSubtreeVulnerabilities(root: DependencyTreeNode): List<TuiVulnerability> {

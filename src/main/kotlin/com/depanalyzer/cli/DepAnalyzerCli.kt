@@ -245,6 +245,11 @@ abstract class BaseAnalyzeCommand(
         }
         val timeoutSeconds = timeout?.toLong() ?: 1800L
         val capabilities = terminalCapabilitiesDetector.detect(noColor = noColor)
+        val tuiCapabilities = if (ascii) {
+            capabilities.copy(supportsUnicodeGlyphs = false)
+        } else {
+            capabilities
+        }
         val interactiveTui = tuiRequested && capabilities.supportsInteractiveTui
 
         ProgressTracker.setMuted(interactiveTui || quiet || outputFile == "-")
@@ -305,7 +310,7 @@ abstract class BaseAnalyzeCommand(
                             analyzeExecutor(tuiRequest.copy(onPartialReport = onPartialReport))
                         }
                     ),
-                    capabilities
+                    tuiCapabilities
                 )
 
                 if (failOnCritical && tuiReport != null && hasCriticalVulnerability(tuiReport)) {

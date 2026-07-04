@@ -54,6 +54,10 @@ scoop bucket add scoop-bucket https://github.com/andre-carbajal/scoop-bucket
 scoop install depanalyzer
 ```
 
+En Windows, la TUI usa ASCII automaticamente cuando la consola no esta en UTF-8 para evitar caracteres corruptos en
+Scoop o binarios nativos. Para forzar Unicode, ejecute `chcp 65001` antes de abrir la TUI o configure
+`$env:DEPANALYZER_TUI_UNICODE="true"`.
+
 Snap (Linux):
 
 ```bash
@@ -229,7 +233,7 @@ Analiza un proyecto y genera reporte de dependencias vulnerables/desactualizadas
 | `--dynamic`          | Fuerza analisis dinamico (mas preciso, mas lento)                   | `analyze`  | `false`           | `depanalyzer analyze . --dynamic`                    |
 | `--disable-maven`    | Desactiva ejecucion Maven en dinamico                               | `analyze`  | `false`           | `depanalyzer analyze . --disable-maven`              |
 | `--disable-gradle`   | Desactiva ejecucion Gradle en dinamico                              | `analyze`  | `false`           | `depanalyzer analyze . --disable-gradle`             |
-| `--ascii`            | Usa caracteres ASCII para el arbol                                  | `analyze`  | Unicode           | `depanalyzer analyze . --ascii`                      |
+| `--ascii`            | Usa caracteres ASCII para arbol/TUI                                 | `analyze`  | auto              | `depanalyzer analyze . --ascii`                      |
 | `--tree-depth N`     | Limita profundidad de arbol                                         | `analyze`  | sin limite        | `depanalyzer analyze . --tree-depth 2`               |
 | `--tree-expand MODE` | Modo de expansion: `collapsed`, `critical`, `high`, `medium`, `all` | `analyze`  | `all`             | `depanalyzer analyze . --tree-expand high`           |
 | `--timeout N`        | Timeout en segundos para descarga de dependencias                   | `analyze`  | `1800`            | `depanalyzer analyze . --timeout 900`                |
@@ -274,7 +278,7 @@ Abre la interfaz interactiva en pantalla completa.
 | `--dynamic`          | Fuerza analisis dinamico                    | `tui`      | `false`           | `depanalyzer tui . --dynamic`                    |
 | `--disable-maven`    | Desactiva Maven dinamico                    | `tui`      | `false`           | `depanalyzer tui . --disable-maven`              |
 | `--disable-gradle`   | Desactiva Gradle dinamico                   | `tui`      | `false`           | `depanalyzer tui . --disable-gradle`             |
-| `--ascii`            | Arbol en ASCII                              | `tui`      | Unicode           | `depanalyzer tui . --ascii`                      |
+| `--ascii`            | Interfaz y arbol en ASCII                  | `tui`      | auto              | `depanalyzer tui . --ascii`                      |
 | `--tree-depth N`     | Limita profundidad de arbol                 | `tui`      | sin limite        | `depanalyzer tui . --tree-depth 3`               |
 | `--tree-expand MODE` | Modo de expansion del arbol                 | `tui`      | `all`             | `depanalyzer tui . --tree-expand critical`       |
 | `--timeout N`        | Timeout en segundos                         | `tui`      | `1800`            | `depanalyzer tui . --timeout 1200`               |
@@ -287,6 +291,9 @@ Ejemplos:
 ```bash
 # Abrir TUI
 depanalyzer tui .
+
+# Forzar TUI ASCII si la terminal no renderiza bien Unicode
+depanalyzer tui . --ascii
 
 # TUI forzando NVD
 depanalyzer tui . --nvd

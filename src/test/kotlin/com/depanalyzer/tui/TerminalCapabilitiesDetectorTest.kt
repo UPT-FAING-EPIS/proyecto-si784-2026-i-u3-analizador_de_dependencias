@@ -38,7 +38,8 @@ class TerminalCapabilitiesDetectorTest {
             envProvider = { null },
             hasConsole = { true },
             consoleCharsetProvider = { Charset.forName("windows-1252") },
-            osNameProvider = { "Windows 11" }
+            osNameProvider = { "Windows 11" },
+            windowsCodePageProvider = { null }
         )
 
         val capabilities = detector.detect()
@@ -52,7 +53,8 @@ class TerminalCapabilitiesDetectorTest {
             envProvider = { null },
             hasConsole = { true },
             consoleCharsetProvider = { Charsets.UTF_8 },
-            osNameProvider = { "Windows 11" }
+            osNameProvider = { "Windows 11" },
+            windowsCodePageProvider = { null }
         )
 
         val capabilities = detector.detect()
@@ -66,11 +68,57 @@ class TerminalCapabilitiesDetectorTest {
             envProvider = { name -> if (name == "DEPANALYZER_TUI_UNICODE") "true" else null },
             hasConsole = { true },
             consoleCharsetProvider = { Charset.forName("windows-1252") },
-            osNameProvider = { "Windows 11" }
+            osNameProvider = { "Windows 11" },
+            windowsCodePageProvider = { 850 }
         )
 
         val capabilities = detector.detect()
 
         assertEquals(true, capabilities.supportsUnicodeGlyphs)
+    }
+
+    @Test
+    fun `disables unicode glyphs on windows code page 850 even when charset is utf8`() {
+        val detector = TerminalCapabilitiesDetector(
+            envProvider = { null },
+            hasConsole = { true },
+            consoleCharsetProvider = { Charsets.UTF_8 },
+            osNameProvider = { "Windows 11" },
+            windowsCodePageProvider = { 850 }
+        )
+
+        val capabilities = detector.detect()
+
+        assertEquals(false, capabilities.supportsUnicodeGlyphs)
+    }
+
+    @Test
+    fun `keeps unicode glyphs on windows code page 65001`() {
+        val detector = TerminalCapabilitiesDetector(
+            envProvider = { null },
+            hasConsole = { true },
+            consoleCharsetProvider = { Charset.forName("windows-1252") },
+            osNameProvider = { "Windows 11" },
+            windowsCodePageProvider = { 65001 }
+        )
+
+        val capabilities = detector.detect()
+
+        assertEquals(true, capabilities.supportsUnicodeGlyphs)
+    }
+
+    @Test
+    fun `allows forcing ascii glyphs by environment variable`() {
+        val detector = TerminalCapabilitiesDetector(
+            envProvider = { name -> if (name == "DEPANALYZER_TUI_UNICODE") "false" else null },
+            hasConsole = { true },
+            consoleCharsetProvider = { Charsets.UTF_8 },
+            osNameProvider = { "Windows 11" },
+            windowsCodePageProvider = { 65001 }
+        )
+
+        val capabilities = detector.detect()
+
+        assertEquals(false, capabilities.supportsUnicodeGlyphs)
     }
 }
